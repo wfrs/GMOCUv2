@@ -1,0 +1,11 @@
+Since version GMOCU-0.4, all downloads will appear in the user data directory.
+
+
+macOS:
+/Users/<user>/GMOCU
+
+Windows:
+C:\Users\<user>\GMOCU
+
+Linux:
+/home/<user>/GMOCU

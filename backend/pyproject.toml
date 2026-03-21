@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gmocu-backend"
+version = "2.0.0"
+description = "GMOCU 2.0 — FastAPI backend for plasmid database and GMO documentation"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    # API
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    # Database
+    "SQLAlchemy>=2.0",
+    # Data / export
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "openpyxl>=3.1",
+    "xlsxwriter>=3.1",
+    # Fuzzy matching
+    "fuzzywuzzy>=0.18",
+    "python-Levenshtein>=0.21",
+    # Google integrations
+    "gspread>=5.11",
+    "gspread-dataframe>=3.3",
+    "PyDrive2>=1.17",
+    "oauth2client>=4.1",
+]
+
+[project.optional-dependencies]
+services = [
+    "icebreaker>=0.2",
+    "filebrowser-client>=0.1",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "httpx>=0.27",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

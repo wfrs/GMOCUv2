@@ -102,6 +102,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-gui
 env/
 venv/
 ENV/
@@ -128,3 +129,14 @@ dmypy.json
 
 .DS_Store
 **/.DS_Store
+.claude/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.git/
+
+# Backend
+backend/.venv/
+backend/.pytest_cache/
+backend/*.egg-info/
