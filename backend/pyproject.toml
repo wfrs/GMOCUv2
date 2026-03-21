@@ -12,6 +12,7 @@ requires-python = ">=3.11"
 dependencies = [
     # API
     "fastapi>=0.115",
+    "python-multipart>=0.0.9",
     "uvicorn[standard]>=0.30",
     # Database
     "SQLAlchemy>=2.0",
