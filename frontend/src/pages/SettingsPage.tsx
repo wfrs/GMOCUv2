@@ -5,13 +5,7 @@ import {
   SlidersHorizontal, User, Leaf, Plug, Info,
   ALargeSmall, LayoutPanelLeft,
 } from "lucide-react";
-import {
-  applyDbAppearance,
-  applyLocalAppearance,
-  getLocalAppearance,
-  setLocalAppearance,
-  type LocalAppearance,
-} from "@/lib/appearance";
+import { applyAllAppearance } from "@/lib/appearance";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
 import { useTheme } from "@/components/theme-context";
 import { toast } from "sonner";
@@ -238,7 +232,6 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
   const { theme, setTheme } = useTheme();
   const [activeSection, setActiveSection] = useState<NavSection>("general");
   const [data, setData] = useState<Settings | null>(null);
-  const [localAppearance, setLocalAppearanceState] = useState<LocalAppearance>(getLocalAppearance);
   const [loading, setLoading] = useState(true);
   const [allOrganisms, setAllOrganisms] = useState<Organism[]>([]);
   const [targetOrganisms, setTargetOrganisms] = useState<OrganismSelectionItem[]>([]);
@@ -285,21 +278,15 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
     await updateField(field, current ? 0 : 1);
   };
 
-  const updateDbAppearance = async (field: string, value: number) => {
+  const updateAppearance = async (field: string, value: string | number) => {
     if (!data) return;
     try {
       const updated = await settingsApi.update({ [field]: value });
       setData(updated);
-      applyDbAppearance(updated.font_size, updated.scale !== null ? updated.scale : null, updated.horizontal_layout);
+      applyAllAppearance(updated);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
     }
-  };
-
-  const updateLocal = (patch: Partial<LocalAppearance>) => {
-    setLocalAppearance(patch);
-    applyLocalAppearance();
-    setLocalAppearanceState(getLocalAppearance());
   };
 
   const addTargetOrganism = async () => {
@@ -438,7 +425,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
                 return (
                   <button
                     key={idx}
-                    onClick={() => updateDbAppearance("font_size", idx)}
+                    onClick={() => updateAppearance("font_size", idx)}
                     className={`rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       isActive
                         ? "border-primary bg-primary/8 text-primary font-medium"
@@ -468,7 +455,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
                 return (
                   <button
                     key={idx}
-                    onClick={() => updateDbAppearance("scale", idx)}
+                    onClick={() => updateAppearance("scale", idx)}
                     className={`rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       isActive
                         ? "border-primary bg-primary/8 text-primary font-medium"
@@ -492,11 +479,11 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
                 { id: "eu",  label: "DD.MM.YYYY", example: "22.03.2026" },
                 { id: "iso", label: "YYYY-MM-DD", example: "2026-03-22" },
               ] as const).map(({ id, label, example }) => {
-                const isActive = localAppearance.dateFormat === id;
+                const isActive = (data.date_format ?? "eu") === id;
                 return (
                   <button
                     key={id}
-                    onClick={() => updateLocal({ dateFormat: id })}
+                    onClick={() => updateAppearance("date_format", id)}
                     className={`flex flex-col items-start rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       isActive
                         ? "border-primary bg-primary/8 text-primary font-medium"
@@ -517,8 +504,8 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
             description="Disable animations and transitions throughout the interface."
           >
             <Toggle
-              checked={localAppearance.reduceMotion}
-              onChange={(v) => updateLocal({ reduceMotion: v })}
+              checked={!!data.reduce_motion}
+              onChange={() => updateAppearance("reduce_motion", data.reduce_motion ? 0 : 1)}
             />
           </SettingsRow>
 
@@ -528,8 +515,8 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
             description="Display GenBank sequence data in a fixed-width font."
           >
             <Toggle
-              checked={localAppearance.monoGenbank}
-              onChange={(v) => updateLocal({ monoGenbank: v })}
+              checked={!!data.mono_genbank}
+              onChange={() => updateAppearance("mono_genbank", data.mono_genbank ? 0 : 1)}
             />
           </SettingsRow>
 
@@ -540,7 +527,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
           >
             <Toggle
               checked={!!data.horizontal_layout}
-              onChange={() => toggleField("horizontal_layout", data.horizontal_layout)}
+              onChange={() => updateAppearance("horizontal_layout", data.horizontal_layout ? 0 : 1)}
             />
           </SettingsRow>
         </SettingsGroup>

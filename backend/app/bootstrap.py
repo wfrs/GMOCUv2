@@ -7,6 +7,7 @@ runtime can open a fresh database file and still expose a usable API.
 import shutil
 from pathlib import Path
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .config import DEFAULT_DATABASE_PATH, LEGACY_DATABASE_PATH
@@ -60,7 +61,27 @@ DEFAULT_SETTINGS = {
     "drive_folder_id": "ID from link",
     "zip_files": 1,
     "autosync": 0,
+    "date_format": "eu",
+    "reduce_motion": 0,
+    "mono_genbank": 0,
 }
+
+
+_APP_SETTINGS_NEW_COLUMNS = [
+    ("date_format",   "TEXT    DEFAULT 'eu'"),
+    ("reduce_motion", "INTEGER DEFAULT 0"),
+    ("mono_genbank",  "INTEGER DEFAULT 0"),
+]
+
+
+def _ensure_app_settings_columns(engine) -> None:
+    """Add new columns to app_settings for existing databases that predate them."""
+    with engine.connect() as conn:
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(app_settings)"))}
+        for col, definition in _APP_SETTINGS_NEW_COLUMNS:
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE app_settings ADD COLUMN {col} {definition}"))
+        conn.commit()
 
 
 def ensure_database_ready(db_path: str) -> None:
@@ -71,6 +92,7 @@ def ensure_database_ready(db_path: str) -> None:
     migrate_database_if_needed(db_path)
     engine = get_engine(db_path)
     Base.metadata.create_all(engine)
+    _ensure_app_settings_columns(engine)
 
     session = get_session(db_path)
     try:

@@ -8,7 +8,7 @@ import { useTheme } from "@/components/theme-context";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { database, plasmids, features, organisms, settings as settingsApi } from "@/api/client";
-import { applyDbAppearance, applyLocalAppearance } from "@/lib/appearance";
+import { applyAllAppearance } from "@/lib/appearance";
 import type {
   DatabaseImportJob,
   PlasmidListItem,
@@ -108,12 +108,9 @@ export default function App() {
     document.title = appVersion ? `GMOCU v${appVersion}` : "GMOCU";
   }, [appVersion]);
 
-  // Apply appearance settings from DB + localStorage on startup
+  // Apply all appearance settings from DB on startup
   useEffect(() => {
-    applyLocalAppearance();
-    settingsApi.get().then((s) => {
-      applyDbAppearance(s.font_size, s.scale !== null ? s.scale : null, s.horizontal_layout);
-    }).catch(() => {});
+    settingsApi.get().then(applyAllAppearance).catch(() => {});
   }, []);
 
   useEffect(() => {

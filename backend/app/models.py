@@ -191,6 +191,9 @@ class AppSettings(Base):
     drive_folder_id = Column(Text, default="ID from link")
     zip_files = Column(Integer, default=1)
     autosync = Column(Integer, default=0)
+    date_format = Column(Text, default="eu")
+    reduce_motion = Column(Integer, default=0)
+    mono_genbank = Column(Integer, default=0)
 
     credentials = relationship("IceCredentials", foreign_keys=[ice_credentials_id])
 

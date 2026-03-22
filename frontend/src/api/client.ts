@@ -98,6 +98,9 @@ export interface Settings {
   drive_folder_id: string | null;
   zip_files: number | null;
   autosync: number | null;
+  date_format: string | null;
+  reduce_motion: number | null;
+  mono_genbank: number | null;
 }
 
 export interface OrganismSelectionItem {

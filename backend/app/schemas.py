@@ -206,6 +206,9 @@ class SettingsOut(BaseModel):
     drive_folder_id: str | None = None
     zip_files: int | None = None
     autosync: int | None = None
+    date_format: str | None = None
+    reduce_motion: int | None = None
+    mono_genbank: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -230,6 +233,9 @@ class SettingsUpdate(BaseModel):
     drive_folder_id: str | None = None
     zip_files: int | None = None
     autosync: int | None = None
+    date_format: str | None = None
+    reduce_motion: int | None = None
+    mono_genbank: int | None = None
 
 
 # --- Organism selections / favourites ---
