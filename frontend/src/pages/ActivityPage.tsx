@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dna, FlaskConical, Bug, ArrowUpRight } from "lucide-react";
 import { activityLog, type ActivityLog } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/appearance";
 
 const FILTERS = [
   { label: "All", value: undefined },
@@ -60,7 +61,7 @@ function groupLabel(ts: string | null): string {
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (dStr === yesterday.toDateString()) return "Yesterday";
-  return d.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+  return formatDate(d.toISOString().slice(0, 10));
 }
 
 type EntityType = "plasmid" | "feature" | "organism";
