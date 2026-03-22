@@ -7,6 +7,13 @@
 
 
 @theme inline {
+  /* ── Untitled UI tokens — needed so bg-brand-solid / bg-active etc. generate CSS ── */
+  --color-brand-solid:        oklch(var(--uitl-brand-l) var(--accent-chroma) var(--accent-hue));
+  --color-brand-solid_hover:  oklch(calc(var(--uitl-brand-l) - 0.08) var(--accent-chroma) var(--accent-hue));
+  --color-active:             var(--uitl-active);
+  --color-primary_hover:      var(--uitl-primary-hover);
+  --color-secondary_hover:    var(--uitl-secondary-hover);
+  --color-fg-brand-primary:   oklch(var(--uitl-brand-l) var(--accent-chroma) var(--accent-hue));
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
@@ -53,6 +60,11 @@
   /* ── Accent knobs — change these two to retheme the entire app ── */
   --accent-hue: 134.13;
   --accent-chroma: 0.212;
+  /* ── Untitled UI intermediary tokens (light mode) ── */
+  --uitl-brand-l:        0.52;
+  --uitl-active:         oklch(0.93 calc(var(--accent-chroma) * 0.12) var(--accent-hue));
+  --uitl-primary-hover:  oklch(0.97 calc(var(--accent-chroma) * 0.03) var(--accent-hue));
+  --uitl-secondary-hover:oklch(0.88 calc(var(--accent-chroma) * 0.12) var(--accent-hue));
 
   --background: oklch(0.99 0 0);
   --foreground: oklch(0.13 calc(var(--accent-chroma) * 0.06) var(--accent-hue));
@@ -122,6 +134,11 @@
   --sidebar-accent-foreground: oklch(0.82 calc(var(--accent-chroma) * 0.85) var(--accent-hue));
   --sidebar-border: oklch(1 0 0 / 7%);
   --sidebar-ring: oklch(0.65 var(--accent-chroma) var(--accent-hue));
+  /* ── Untitled UI intermediary tokens (dark mode) ── */
+  --uitl-brand-l:        0.65;
+  --uitl-active:         oklch(0.25 calc(var(--accent-chroma) * 0.18) var(--accent-hue));
+  --uitl-primary-hover:  oklch(0.22 calc(var(--accent-chroma) * 0.1) var(--accent-hue));
+  --uitl-secondary-hover:oklch(0.30 calc(var(--accent-chroma) * 0.15) var(--accent-hue));
 }
 
 @layer base {
@@ -163,33 +180,24 @@ html[data-reduce-motion] *::after {
 /* UUI semantic tokens collide with shadcn names. Scope correct values inside
    the calendar popup so the rest of the app is unaffected.                   */
 .uitl-calendar {
-  /* Tailwind v4 @theme inline resolves bg-primary → var(--primary) directly,
-     so we override the source vars here, not --color-* aliases.
-     Applied ONLY to the calendar body div, not the footer buttons, so the
-     app's green is preserved for Apply.                                      */
+  /* Tailwind v4 @theme inline resolves bg-primary → var(--primary) directly.
+     Override --primary/--secondary here (calendar body only) so the UUI
+     DateInput and Today button get a white bg and dark text.
+     Brand tokens (bg-brand-solid, bg-active) are handled globally via @theme. */
   --primary:         oklch(1 0 0);
   --primary_hover:   oklch(0.97 0 0);
-  --secondary:       oklch(0.25 0.015 250);   /* date numbers: dark readable text */
+  --secondary:       oklch(0.25 0.015 250);
   --secondary_hover: oklch(0.15 0.015 250);
   --tertiary:        oklch(0.45 0.01 250);
   --tertiary_hover:  oklch(0.28 0.01 250);
-  /* UUI-only tokens (not @theme-inlined, referenced via var() as-is) */
   --color-secondary_alt:       color-mix(in srgb, oklch(0.13 0.02 250) 18%, transparent);
-  --color-active:              oklch(0.95 0 0);
-  --color-disabled:            oklch(0.88 0 0);
-  --color-disabled_subtle:     oklch(0.92 0 0);
   --color-fg-secondary:        oklch(0.28 0.015 250);
   --color-fg-quaternary:       oklch(0.63 0.01 250);
   --color-fg-quaternary_hover: oklch(0.48 0.01 250);
+  --color-disabled:            oklch(0.88 0 0);
   --color-fg-disabled:         oklch(0.68 0 0);
   --color-fg-disabled_subtle:  oklch(0.82 0 0);
   --color-fg-white:            oklch(1 0 0);
-  /* Brand: hardcode from accent formula — avoids --primary chain (which is now white) */
-  --color-brand-solid:         oklch(0.52 var(--accent-chroma) var(--accent-hue));
-  --color-brand-solid_hover:   oklch(0.44 var(--accent-chroma) var(--accent-hue));
-  --color-fg-brand-primary:    oklch(0.52 var(--accent-chroma) var(--accent-hue));
-  --color-focus-ring:          oklch(0.52 var(--accent-chroma) var(--accent-hue));
-  --color-outline-brand:       oklch(0.52 var(--accent-chroma) var(--accent-hue));
 }
 
 .dark .uitl-calendar {
@@ -200,18 +208,11 @@ html[data-reduce-motion] *::after {
   --tertiary:        oklch(0.62 calc(var(--accent-chroma) * 0.15) var(--accent-hue));
   --tertiary_hover:  oklch(0.78 0 0);
   --color-secondary_alt: color-mix(in srgb, oklch(0.95 0 0) 15%, transparent);
-  --color-active:              oklch(0.25 calc(var(--accent-chroma) * 0.15) var(--accent-hue));
-  --color-disabled:            oklch(0.35 0 0);
-  --color-disabled_subtle:     oklch(0.28 0 0);
   --color-fg-secondary:        oklch(0.85 calc(var(--accent-chroma) * 0.04) var(--accent-hue));
   --color-fg-quaternary:       oklch(0.55 calc(var(--accent-chroma) * 0.1) var(--accent-hue));
   --color-fg-quaternary_hover: oklch(0.70 0 0);
+  --color-disabled:            oklch(0.35 0 0);
   --color-fg-disabled:         oklch(0.45 0 0);
   --color-fg-disabled_subtle:  oklch(0.35 0 0);
   --color-fg-white:            oklch(1 0 0);
-  --color-brand-solid:         oklch(0.65 var(--accent-chroma) var(--accent-hue));
-  --color-brand-solid_hover:   oklch(0.58 var(--accent-chroma) var(--accent-hue));
-  --color-fg-brand-primary:    oklch(0.65 var(--accent-chroma) var(--accent-hue));
-  --color-focus-ring:          oklch(0.65 var(--accent-chroma) var(--accent-hue));
-  --color-outline-brand:       oklch(0.65 var(--accent-chroma) var(--accent-hue));
 }
