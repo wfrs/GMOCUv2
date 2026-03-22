@@ -11,6 +11,14 @@ import {
   FORMBLATT_COLUMNS_DE,
   FORMBLATT_COLUMNS_EN,
 } from "@/api/client";
+import { formatDate } from "@/lib/appearance";
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function fmtCell(val: string | number | null): string {
+  if (val == null) return "—";
+  const s = String(val);
+  return ISO_DATE_RE.test(s) ? formatDate(s) : s;
+}
 import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 
@@ -339,7 +347,7 @@ export default function FormblattPage() {
                         style={{ width: COL_WIDTHS[j] }}
                       >
                         <div className="break-words text-sm">
-                          {row[col] != null ? String(row[col]) : "—"}
+                          {fmtCell(row[col])}
                         </div>
                       </td>
                     ))}

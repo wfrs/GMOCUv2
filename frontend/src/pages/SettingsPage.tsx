@@ -5,7 +5,7 @@ import {
   SlidersHorizontal, User, Leaf, Plug, Info,
   ALargeSmall, LayoutPanelLeft,
 } from "lucide-react";
-import { applyAllAppearance } from "@/lib/appearance";
+import { applyAllAppearance, formatDate } from "@/lib/appearance";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
 import { useTheme } from "@/components/theme-context";
 import { toast } from "sonner";
@@ -848,7 +848,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
                       </span>
                     )}
                     {r.date && (
-                      <span className="text-xs text-muted-foreground ml-auto">{r.date}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">{formatDate(r.date)}</span>
                     )}
                   </div>
                   {r.notes && (
