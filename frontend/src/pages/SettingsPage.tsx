@@ -68,6 +68,42 @@ function SectionHeader({ title, description }: { title: string; description?: st
   );
 }
 
+function renderInline(text: string) {
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{part}</strong> : part
+  );
+}
+
+function ReleaseNoteBody({ notes }: { notes: string }) {
+  const lines = notes.split(/\r?\n/);
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        if (line.startsWith("## ")) {
+          return (
+            <p key={i} className="text-xs font-semibold text-foreground pt-2 first:pt-0">
+              {line.slice(3)}
+            </p>
+          );
+        }
+        if (line.startsWith("- ")) {
+          return (
+            <p key={i} className="text-xs text-muted-foreground flex gap-1.5">
+              <span className="shrink-0 text-muted-foreground/60">•</span>
+              <span>{renderInline(line.slice(2))}</span>
+            </p>
+          );
+        }
+        if (line.trim() === "") return null;
+        return (
+          <p key={i} className="text-xs text-muted-foreground">{renderInline(line)}</p>
+        );
+      })}
+    </div>
+  );
+}
+
 function ComingSoon({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
@@ -617,8 +653,8 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
                 )}
               </div>
               {r.notes && (
-                <div className="ml-5 text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-                  {r.notes.length > 600 ? r.notes.slice(0, 600) + "…" : r.notes}
+                <div className="ml-5">
+                  <ReleaseNoteBody notes={r.notes.length > 600 ? r.notes.slice(0, 600) + "…" : r.notes} />
                 </div>
               )}
             </div>
