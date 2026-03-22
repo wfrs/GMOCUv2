@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatDate } from "@/lib/appearance";
+
+const ISO_DATE_RE = /\d{4}-\d{2}-\d{2}/g;
+function fmtSummary(s: string | null | undefined): string {
+  if (!s) return "No GMO summary";
+  return s.replace(ISO_DATE_RE, (m) => formatDate(m));
+}
 import {
   Plus, Trash2, Search, Download, Upload, X, FileText,
   Paperclip, ChevronDown, Loader2, Copy, Download as DownloadIcon,
@@ -597,7 +604,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                             </div>
                           </div>
                           <div className="text-xs text-muted-foreground mt-2 font-mono">
-                            {g.summary || "No GMO summary"}
+                            {fmtSummary(g.summary)}
                           </div>
                         </div>
                       ))}
@@ -1013,7 +1020,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                               </Tooltip>
                           </div>
                           <div className="text-xs text-muted-foreground mt-2 font-mono break-words">
-                            {g.summary || "No GMO summary"}
+                            {fmtSummary(g.summary)}
                           </div>
                         </div>
                       ))}
