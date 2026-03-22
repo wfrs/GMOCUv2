@@ -115,3 +115,35 @@ GitHub Actions runs:
 Workflow file:
 
 - [.github/workflows/ci.yml](/Users/wfrs/code/gmocu/gmocu/.github/workflows/ci.yml)
+
+## Git Workflow
+
+### Conventional commits
+
+Commit messages follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+feat: add new feature
+fix: correct a bug
+chore: maintenance, dependency updates, tooling
+docs: documentation only
+refactor: code change with no behaviour change
+```
+
+### Automatic versioning
+
+A `commit-msg` hook automatically bumps the app version based on the commit prefix:
+
+| Prefix | Bump | Example |
+|--------|------|---------|
+| `feat:` | MINOR (x.**Y**.0) | 2.2.0 → 2.3.0 |
+| `fix:` | PATCH (x.y.**Z**) | 2.2.0 → 2.2.1 |
+| anything else | none | — |
+
+The hook updates `backend/app/config.py`, `backend/pyproject.toml`, and `frontend/package.json` in the same commit — no separate version bump commits needed.
+
+The hooks live in `.githooks/`. After cloning, activate them once with:
+
+```bash
+git config core.hooksPath .githooks
+```
