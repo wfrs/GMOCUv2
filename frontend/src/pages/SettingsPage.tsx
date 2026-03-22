@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Construction, Copy, Check, Sun, Moon, Monitor, ExternalLink, Tag } from "lucide-react";
+import {
+  Plus, Trash2, Construction, Copy, Check,
+  Sun, Moon, Monitor, ExternalLink, Tag,
+  SlidersHorizontal, User, Leaf, Plug, Info,
+} from "lucide-react";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
 import { useTheme } from "@/components/theme-context";
 import { toast } from "sonner";
@@ -18,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -27,6 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function Toggle({
   checked,
@@ -57,10 +62,98 @@ function Toggle({
   );
 }
 
-function SectionHeader({ title, description }: { title: string; description?: string }) {
+function SettingsGroup({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
-    <div className="mb-4">
-      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+    <div className="space-y-1.5">
+      {label && (
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">
+          {label}
+        </p>
+      )}
+      <div className="border rounded-xl overflow-hidden divide-y divide-border bg-card">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SettingsRow({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium leading-snug">{label}</p>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{description}</p>
+        )}
+      </div>
+      {children && <div className="shrink-0">{children}</div>}
+    </div>
+  );
+}
+
+function SettingsInput({
+  label,
+  description,
+  id,
+  value,
+  onChange,
+  onBlur,
+  type,
+  placeholder,
+}: {
+  label: string;
+  description?: string;
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: (v: string) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div className="px-4 py-3 space-y-1.5">
+      <Label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </Label>
+      {description && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+      <Input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onBlur(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function ComingSoon({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 px-4 py-3">
+      <Construction className="h-4 w-4 text-muted-foreground shrink-0" />
+      <span className="text-sm text-muted-foreground flex-1">{label}</span>
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+        coming soon
+      </Badge>
+    </div>
+  );
+}
+
+function SectionTitle({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="mb-5">
+      <h2 className="text-base font-semibold tracking-tight">{title}</h2>
       {description && (
         <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
       )}
@@ -71,7 +164,13 @@ function SectionHeader({ title, description }: { title: string; description?: st
 function renderInline(text: string) {
   const parts = text.split(/\*\*(.*?)\*\*/g);
   return parts.map((part, i) =>
-    i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{part}</strong> : part
+    i % 2 === 1 ? (
+      <strong key={i} className="font-semibold text-foreground">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
   );
 }
 
@@ -97,32 +196,39 @@ function ReleaseNoteBody({ notes }: { notes: string }) {
         }
         if (line.trim() === "") return null;
         return (
-          <p key={i} className="text-xs text-muted-foreground">{renderInline(line)}</p>
+          <p key={i} className="text-xs text-muted-foreground">
+            {renderInline(line)}
+          </p>
         );
       })}
     </div>
   );
 }
 
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
-      <Construction className="h-4 w-4" />
-      <span>{label}</span>
-      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-        coming soon
-      </Badge>
-    </div>
-  );
-}
+// ── Nav ──────────────────────────────────────────────────────────────────────
+
+type NavSection = "general" | "profile" | "organisms" | "integrations" | "about";
+
+const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType }[] = [
+  { id: "general",      label: "General",      icon: SlidersHorizontal },
+  { id: "profile",      label: "Profile",      icon: User              },
+  { id: "organisms",    label: "Organisms",    icon: Leaf              },
+  { id: "integrations", label: "Integrations", icon: Plug              },
+  { id: "about",        label: "About",        icon: Info              },
+];
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface SettingsPageProps {
   accentPresetId: string;
   onAccentChange: (id: string) => void;
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function SettingsPage({ accentPresetId, onAccentChange }: SettingsPageProps) {
   const { theme, setTheme } = useTheme();
+  const [activeSection, setActiveSection] = useState<NavSection>("general");
   const [data, setData] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [allOrganisms, setAllOrganisms] = useState<Organism[]>([]);
@@ -149,9 +255,10 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
       .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load settings"))
       .finally(() => setLoading(false));
 
-    releasesApi.list()
+    releasesApi
+      .list()
       .then(setReleaseNotes)
-      .catch(() => {/* silently ignore — offline or no releases yet */})
+      .catch(() => {})
       .finally(() => setReleasesLoading(false));
   }, []);
 
@@ -214,380 +321,335 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        Loading...
+        Loading…
       </div>
     );
   }
 
-  return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your profile, integrations, and preferences.
-        </p>
-      </div>
+  // ── Section content ─────────────────────────────────────────────────────────
 
-      {/* ── Appearance ── */}
-      <section className="border rounded-lg p-5 space-y-5">
-        <SectionHeader title="Appearance" description="Personalise the look and feel of the interface." />
+  const sections: Record<NavSection, React.ReactNode> = {
+    general: (
+      <div className="space-y-6">
+        <SectionTitle title="General" description="Appearance and behaviour settings." />
 
-        {/* Mode */}
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Mode</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              { id: "light",  label: "Light",  Icon: Sun },
-              { id: "system", label: "System", Icon: Monitor },
-              { id: "dark",   label: "Dark",   Icon: Moon },
-            ] as const).map(({ id, label, Icon }) => {
-              const isActive = theme === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => setTheme(id)}
-                  className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                    isActive
-                      ? "border-primary bg-primary/8 text-primary font-medium"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Accent colour */}
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Accent Colour</Label>
-          <div className="grid grid-cols-6 gap-2">
-            {COLOR_PRESETS.map((preset) => {
-              const isActive = accentPresetId === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => onAccentChange(preset.id)}
-                  title={preset.name}
-                  className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                    isActive ? "bg-accent ring-2 ring-primary" : "hover:bg-muted"
-                  }`}
-                >
-                  <span
-                    className="flex h-8 w-8 items-center justify-center rounded-full shadow-sm ring-1 ring-black/10 dark:ring-white/10"
-                    style={{ backgroundColor: swatchColor(preset) }}
+        <SettingsGroup label="Appearance">
+          {/* Theme mode */}
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-sm font-medium">Mode</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { id: "light",  label: "Light",  Icon: Sun     },
+                { id: "system", label: "System", Icon: Monitor },
+                { id: "dark",   label: "Dark",   Icon: Moon    },
+              ] as const).map(({ id, label, Icon }) => {
+                const isActive = theme === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setTheme(id)}
+                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      isActive
+                        ? "border-primary bg-primary/8 text-primary font-medium"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
                   >
-                    {isActive && <Check className="h-4 w-4 text-white drop-shadow" />}
-                  </span>
-                  <span className={`text-[11px] leading-none ${isActive ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                    {preset.name}
-                  </span>
-                </button>
-              );
-            })}
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* ── Profile ── */}
-      <section className="border rounded-lg p-5 space-y-4">
-        <SectionHeader title="Profile" description="Your identity used in exports and Formblatt Z." />
+          {/* Accent colour */}
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-sm font-medium">Accent Colour</p>
+            <div className="grid grid-cols-6 gap-2">
+              {COLOR_PRESETS.map((preset) => {
+                const isActive = accentPresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => onAccentChange(preset.id)}
+                    title={preset.name}
+                    className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      isActive ? "bg-accent ring-2 ring-primary" : "hover:bg-muted"
+                    }`}
+                  >
+                    <span
+                      className="flex h-7 w-7 items-center justify-center rounded-full shadow-sm ring-1 ring-black/10 dark:ring-white/10"
+                      style={{ backgroundColor: swatchColor(preset) }}
+                    >
+                      {isActive && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
+                    </span>
+                    <span
+                      className={`text-[10px] leading-none ${
+                        isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      {preset.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </SettingsGroup>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="s-name">Name</Label>
-            <Input
-              id="s-name"
-              value={data.name || ""}
-              onChange={(e) => setData({ ...data, name: e.target.value })}
-              onBlur={(e) => updateField("name", e.target.value)}
+        <SettingsGroup label="Behaviour">
+          <SettingsRow
+            label="Duplicate GMOs"
+            description="Create duplicate GMO entries when adding organisms to plasmids."
+          >
+            <Toggle
+              checked={!!data.duplicate_gmos}
+              onChange={() => toggleField("duplicate_gmos", data.duplicate_gmos)}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="s-initials">Initials</Label>
-            <Input
-              id="s-initials"
-              value={data.initials || ""}
-              onChange={(e) => setData({ ...data, initials: e.target.value })}
-              onBlur={(e) => updateField("initials", e.target.value)}
+          </SettingsRow>
+          <SettingsRow
+            label="Upload completed only"
+            description="Only upload plasmids with 'Complete' status to servers."
+          >
+            <Toggle
+              checked={!!data.upload_completed}
+              onChange={() => toggleField("upload_completed", data.upload_completed)}
             />
-          </div>
-        </div>
+          </SettingsRow>
+        </SettingsGroup>
+      </div>
+    ),
 
-        <div className="space-y-1.5">
-          <Label htmlFor="s-email">Email</Label>
-          <Input
+    profile: (
+      <div className="space-y-6">
+        <SectionTitle title="Profile" description="Your identity used in exports and Formblatt Z." />
+
+        <SettingsGroup>
+          <SettingsInput
+            id="s-name"
+            label="Name"
+            value={data.name || ""}
+            onChange={(v) => setData({ ...data, name: v })}
+            onBlur={(v) => updateField("name", v)}
+          />
+          <SettingsInput
+            id="s-initials"
+            label="Initials"
+            value={data.initials || ""}
+            onChange={(v) => setData({ ...data, initials: v })}
+            onBlur={(v) => updateField("initials", v)}
+          />
+          <SettingsInput
             id="s-email"
+            label="Email"
             type="email"
             value={data.email || ""}
-            onChange={(e) => setData({ ...data, email: e.target.value })}
-            onBlur={(e) => updateField("email", e.target.value)}
+            onChange={(v) => setData({ ...data, email: v })}
+            onBlur={(v) => updateField("email", v)}
           />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="s-institution">GMO Institute</Label>
-          <Input
+          <SettingsInput
             id="s-institution"
+            label="GMO Institute"
             value={data.institution || ""}
-            onChange={(e) => setData({ ...data, institution: e.target.value })}
-            onBlur={(e) => updateField("institution", e.target.value)}
+            onChange={(v) => setData({ ...data, institution: v })}
+            onBlur={(v) => updateField("institution", v)}
           />
-        </div>
-      </section>
+        </SettingsGroup>
+      </div>
+    ),
 
-      {/* ── Behaviour ── */}
-      <section className="border rounded-lg p-5 space-y-4">
-        <SectionHeader title="Behaviour" description="Control how GMOCU handles data." />
+    organisms: (
+      <div className="space-y-6">
+        <SectionTitle
+          title="Organisms"
+          description="Configure which organisms appear in GMO entry dropdowns."
+        />
 
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Duplicate GMOs</p>
-            <p className="text-xs text-muted-foreground">Create duplicate GMO entries when adding organisms to plasmids.</p>
+        <SettingsGroup label="Target Organisms">
+          <div className="px-4 py-3 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Organisms available as GMO targets when adding organisms to plasmids.
+            </p>
+            <div className="flex gap-2">
+              <Select value={targetCombo} onValueChange={(v) => { if (v) setTargetCombo(v); }}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select organism…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allOrganisms.map((o) => (
+                    <SelectItem key={o.id} value={o.short_name || `org-${o.id}`}>
+                      {o.short_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" className="gap-1.5" onClick={addTargetOrganism} disabled={!targetCombo}>
+                <Plus className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+            <div className="space-y-1">
+              {targetOrganisms.length > 0 ? (
+                targetOrganisms.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between px-3 py-2 bg-muted rounded-md text-sm"
+                  >
+                    <span>{t.organism_name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeTargetOrganism(t.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground py-1">No target organisms configured.</p>
+              )}
+            </div>
           </div>
-          <Toggle
-            checked={!!data.duplicate_gmos}
-            onChange={() => toggleField("duplicate_gmos", data.duplicate_gmos)}
-          />
-        </div>
+        </SettingsGroup>
 
-        <Separator />
-
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Upload completed only</p>
-            <p className="text-xs text-muted-foreground">Only upload plasmids with "Complete" status to servers.</p>
+        <SettingsGroup label="Favourite Organisms">
+          <div className="px-4 py-3 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Quick-access subset shown first in organism dropdowns. Must also exist in Target Organisms.
+            </p>
+            <div className="flex gap-2">
+              <Select value={favCombo} onValueChange={(v) => { if (v) setFavCombo(v); }}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select from targets…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {targetOrganisms.map((t) => (
+                    <SelectItem key={t.id} value={t.organism_name || `t-${t.id}`}>
+                      {t.organism_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" className="gap-1.5" onClick={addFavOrganism} disabled={!favCombo}>
+                <Copy className="h-4 w-4" />
+                Add
+              </Button>
+            </div>
+            <div className="space-y-1">
+              {favOrganisms.length > 0 ? (
+                favOrganisms.map((f) => (
+                  <div
+                    key={f.id}
+                    className="flex items-center justify-between px-3 py-2 bg-muted rounded-md text-sm"
+                  >
+                    <span>{f.organism_name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeFavOrganism(f.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground py-1">No favourite organisms configured.</p>
+              )}
+            </div>
           </div>
-          <Toggle
-            checked={!!data.upload_completed}
-            onChange={() => toggleField("upload_completed", data.upload_completed)}
-          />
-        </div>
-      </section>
+        </SettingsGroup>
+      </div>
+    ),
 
-      {/* ── Integrations ── */}
-      <section className="border rounded-lg p-5 space-y-4">
-        <SectionHeader title="Integrations" description="Connect to external services." />
+    integrations: (
+      <div className="space-y-6">
+        <SectionTitle title="Integrations" description="Connect to external services." />
 
-        {/* JBEI/ice */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">JBEI/ice</p>
-            <p className="text-xs text-muted-foreground">Upload plasmid data to JBEI/ice registry.</p>
-          </div>
-          <Toggle
-            checked={!!data.use_ice}
-            onChange={() => toggleField("use_ice", data.use_ice)}
-          />
-        </div>
-
-        <Separator />
-
-        {/* Filebrowser */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Filebrowser</p>
-            <p className="text-xs text-muted-foreground">Upload files to Filebrowser server.</p>
-          </div>
-          <Toggle
-            checked={!!data.use_file_browser}
-            onChange={() => toggleField("use_file_browser", data.use_file_browser)}
-          />
-        </div>
-
-        {(!!data.use_ice || !!data.use_file_browser) && (
-          <div className="pl-4 border-l-2 border-muted space-y-2">
+        <SettingsGroup label="Servers">
+          <SettingsRow
+            label="JBEI/ice"
+            description="Upload plasmid data to JBEI/ice registry."
+          >
+            <Toggle
+              checked={!!data.use_ice}
+              onChange={() => toggleField("use_ice", data.use_ice)}
+            />
+          </SettingsRow>
+          <SettingsRow
+            label="Filebrowser"
+            description="Upload files to a Filebrowser server."
+          >
+            <Toggle
+              checked={!!data.use_file_browser}
+              onChange={() => toggleField("use_file_browser", data.use_file_browser)}
+            />
+          </SettingsRow>
+          {(!!data.use_ice || !!data.use_file_browser) && (
             <ComingSoon label="Server credentials management" />
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Google Drive */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Google Drive Folder</p>
-            <p className="text-xs text-muted-foreground">Upload plasmid files to Google Drive.</p>
-          </div>
-          <Toggle
-            checked={!!data.use_gdrive}
-            onChange={() => toggleField("use_gdrive", data.use_gdrive)}
-          />
-        </div>
-
-        {!!data.use_gdrive && (
-          <div className="pl-4 border-l-2 border-muted space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="s-gdrive-id">GDrive Folder ID</Label>
-              <Input
-                id="s-gdrive-id"
-                placeholder="ID from link"
-                value={data.drive_folder_id || ""}
-                onChange={(e) => setData({ ...data, drive_folder_id: e.target.value })}
-                onBlur={(e) => updateField("drive_folder_id", e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Zip files */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Zip files</p>
-            <p className="text-xs text-muted-foreground">Compress files before uploading (faster).</p>
-          </div>
-          <Toggle
-            checked={!!data.zip_files}
-            onChange={() => toggleField("zip_files", data.zip_files)}
-          />
-        </div>
-
-        <Separator />
-
-        {/* Google Sheets sync */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Autosync Google Sheets</p>
-            <p className="text-xs text-muted-foreground">Automatically sync glossary with Google Sheets.</p>
-          </div>
-          <Toggle
-            checked={!!data.autosync}
-            onChange={() => toggleField("autosync", data.autosync)}
-          />
-        </div>
-
-        {!!data.autosync && (
-          <div className="pl-4 border-l-2 border-muted space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="s-gsheet-id">GDrive Sheet ID</Label>
-              <Input
-                id="s-gsheet-id"
-                placeholder="Google Sheets ID"
-                value={data.glossary_sheet_id || ""}
-                onChange={(e) => setData({ ...data, glossary_sheet_id: e.target.value })}
-                onBlur={(e) => updateField("glossary_sheet_id", e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ── Coming soon ── */}
-      <section className="border rounded-lg p-5 space-y-3 border-dashed">
-        <SectionHeader title="Coming Soon" description="Features being ported from the legacy app." />
-        <ComingSoon label="Upload to JBEI/ice, Filebrowser, and GDrive" />
-        <ComingSoon label="Google Sheets glossary sync" />
-      </section>
-
-      {/* ── Target Organisms ── */}
-      <section className="border rounded-lg p-5 space-y-4">
-        <SectionHeader
-          title="Target Organisms"
-          description="Organisms available as GMO targets when adding organisms to plasmids."
-        />
-
-        <div className="flex gap-2">
-          <Select value={targetCombo} onValueChange={(v) => { if (v) setTargetCombo(v); }}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Select organism..." />
-            </SelectTrigger>
-            <SelectContent>
-              {allOrganisms.map((o) => (
-                <SelectItem key={o.id} value={o.short_name || `org-${o.id}`}>
-                  {o.short_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" className="gap-1.5" onClick={addTargetOrganism} disabled={!targetCombo}>
-            <Plus className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
-
-        <div className="space-y-1">
-          {targetOrganisms.length > 0 ? (
-            targetOrganisms.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center justify-between px-3 py-2 bg-muted rounded-md text-sm"
-              >
-                <span>{t.organism_name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => removeTargetOrganism(t.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground py-2">No target organisms configured.</p>
           )}
-        </div>
-      </section>
+          <SettingsRow
+            label="Zip files"
+            description="Compress files before uploading (faster)."
+          >
+            <Toggle
+              checked={!!data.zip_files}
+              onChange={() => toggleField("zip_files", data.zip_files)}
+            />
+          </SettingsRow>
+        </SettingsGroup>
 
-      {/* ── Favourite Organisms ── */}
-      <section className="border rounded-lg p-5 space-y-4">
-        <SectionHeader
-          title="Favourite Organisms"
-          description="Quick-access subset of target organisms. All listed organisms must also exist in Target Organisms."
-        />
-
-        <div className="flex gap-2">
-          <Select value={favCombo} onValueChange={(v) => { if (v) setFavCombo(v); }}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Select from targets..." />
-            </SelectTrigger>
-            <SelectContent>
-              {targetOrganisms.map((t) => (
-                <SelectItem key={t.id} value={t.organism_name || `t-${t.id}`}>
-                  {t.organism_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" className="gap-1.5" onClick={addFavOrganism} disabled={!favCombo}>
-            <Copy className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
-
-        <div className="space-y-1">
-          {favOrganisms.length > 0 ? (
-            favOrganisms.map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center justify-between px-3 py-2 bg-muted rounded-md text-sm"
-              >
-                <span>{f.organism_name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => removeFavOrganism(f.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground py-2">No favourite organisms configured.</p>
+        <SettingsGroup label="Google">
+          <SettingsRow
+            label="Google Drive Folder"
+            description="Upload plasmid files to Google Drive."
+          >
+            <Toggle
+              checked={!!data.use_gdrive}
+              onChange={() => toggleField("use_gdrive", data.use_gdrive)}
+            />
+          </SettingsRow>
+          {!!data.use_gdrive && (
+            <SettingsInput
+              id="s-gdrive-id"
+              label="GDrive Folder ID"
+              placeholder="ID from the folder link"
+              value={data.drive_folder_id || ""}
+              onChange={(v) => setData({ ...data, drive_folder_id: v })}
+              onBlur={(v) => updateField("drive_folder_id", v)}
+            />
           )}
-        </div>
-      </section>
+          <SettingsRow
+            label="Autosync Google Sheets"
+            description="Automatically sync glossary with Google Sheets."
+          >
+            <Toggle
+              checked={!!data.autosync}
+              onChange={() => toggleField("autosync", data.autosync)}
+            />
+          </SettingsRow>
+          {!!data.autosync && (
+            <SettingsInput
+              id="s-gsheet-id"
+              label="Google Sheets ID"
+              placeholder="Spreadsheet ID from the URL"
+              value={data.glossary_sheet_id || ""}
+              onChange={(v) => setData({ ...data, glossary_sheet_id: v })}
+              onBlur={(v) => updateField("glossary_sheet_id", v)}
+            />
+          )}
+        </SettingsGroup>
 
-      {/* ── About ── */}
-      <section className="border rounded-lg p-5 space-y-5">
+        <SettingsGroup label="Coming Soon">
+          <ComingSoon label="Upload to JBEI/ice, Filebrowser, and GDrive" />
+          <ComingSoon label="Google Sheets glossary sync" />
+        </SettingsGroup>
+      </div>
+    ),
+
+    about: (
+      <div className="space-y-6">
         <div className="flex items-start justify-between">
-          <SectionHeader
-            title="About GMOCU"
-            description="GMO documentation and plasmid management."
-          />
+          <SectionTitle title="About GMOCU" description="GMO documentation and plasmid management." />
           <a
             href="https://github.com/wfrs/GMOCUv2"
             target="_blank"
@@ -599,26 +661,26 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
           </a>
         </div>
 
-        {/* Version badge */}
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-bold tracking-tight">GMOCU</span>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-            v{releaseNotes[0]?.version.replace(/^v/, "") ?? "2.1.0"}
-          </span>
-        </div>
+        <SettingsGroup>
+          <div className="px-4 py-4 flex items-center gap-3">
+            <span className="text-xl font-bold tracking-tight">GMOCU</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              v{releaseNotes[0]?.version.replace(/^v/, "") ?? "2.1.0"}
+            </span>
+          </div>
+        </SettingsGroup>
 
-        {/* Release notes */}
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            What's new
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">
+            What's New
           </p>
 
           {releasesLoading && (
-            <p className="text-sm text-muted-foreground">Loading release notes…</p>
+            <p className="text-sm text-muted-foreground px-1">Loading release notes…</p>
           )}
 
           {!releasesLoading && releaseNotes.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground px-1">
               No releases published yet.{" "}
               <a
                 href="https://github.com/wfrs/GMOCUv2/releases"
@@ -631,53 +693,92 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
             </p>
           )}
 
-          {releaseNotes.map((r) => (
-            <div key={r.version} className="py-3 border-t border-border/60 first:border-t-0 first:pt-0">
-              <div className="flex items-center gap-2 mb-2">
-                <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {releaseNotes.length > 0 && (
+            <div className="border rounded-xl overflow-hidden divide-y divide-border bg-card">
+              {releaseNotes.map((r) => (
+                <div key={r.version} className="px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-semibold hover:text-primary transition-colors"
+                    >
+                      {r.version}
+                    </a>
+                    {r.prerelease && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 text-amber-600 dark:text-amber-400">
+                        pre-release
+                      </span>
+                    )}
+                    {r.date && (
+                      <span className="text-xs text-muted-foreground ml-auto">{r.date}</span>
+                    )}
+                  </div>
+                  {r.notes && (
+                    <div className="ml-5">
+                      <ReleaseNoteBody notes={r.notes} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="px-4 py-3">
                 <a
-                  href={r.url}
+                  href="https://github.com/wfrs/GMOCUv2/releases"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-semibold hover:text-primary transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {r.version}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  View all releases on GitHub
                 </a>
-                {r.prerelease && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 text-amber-600 dark:text-amber-400">
-                    pre-release
-                  </span>
-                )}
-                {r.date && (
-                  <span className="text-xs text-muted-foreground ml-auto">{r.date}</span>
-                )}
               </div>
-              {r.notes && (
-                <div className="ml-5">
-                  <ReleaseNoteBody notes={r.notes} />
-                </div>
-              )}
-            </div>
-          ))}
-
-          {releaseNotes.length > 0 && (
-            <div className="pt-2 border-t border-border/60">
-              <a
-                href="https://github.com/wfrs/GMOCUv2/releases"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                View all releases on GitHub
-              </a>
             </div>
           )}
         </div>
-      </section>
+      </div>
+    ),
+  };
 
-      {/* Bottom spacer */}
-      <div className="h-8" />
+  // ── Layout ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage your profile, integrations, and preferences.
+        </p>
+      </div>
+
+      <div className="flex gap-8 items-start">
+        {/* Left nav rail */}
+        <nav className="w-44 shrink-0 sticky top-4 space-y-0.5">
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeSection === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveSection(id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring text-left ${
+                  isActive
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Right content */}
+        <div className="flex-1 min-w-0 pb-10">
+          {sections[activeSection]}
+        </div>
+      </div>
     </div>
   );
 }
