@@ -75,8 +75,9 @@ export default function ActivityPage({ onNavigate }: ActivityPageProps) {
   const [filter, setFilter] = useState<FilterValue>(undefined);
 
   useEffect(() => {
-    setLoading(true);
-    activityLog.list(filter).then(setData).finally(() => setLoading(false));
+    activityLog.list(filter)
+      .then((rows) => { setData(rows); setLoading(false); })
+      .catch(() => setLoading(false));
   }, [filter]);
 
   // Group entries by date label

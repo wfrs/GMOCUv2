@@ -18,13 +18,14 @@ interface FormblattDialogProps {
 
 export function FormblattDialog({ open, onOpenChange }: FormblattDialogProps) {
   const [validation, setValidation] = useState<FormblattValidation | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  // Derive loading from validation being absent while dialog is open
+  const loading = open && validation === null;
 
   useEffect(() => {
     if (!open) return;
-    setValidation(null);
-    setLoading(true);
-    reports.validateFormblatt().then(setValidation).finally(() => setLoading(false));
+    reports.validateFormblatt().then(setValidation);
+    return () => setValidation(null);
   }, [open]);
 
   const handleDownload = (lang: "de" | "en") => {
