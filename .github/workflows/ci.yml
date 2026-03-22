@@ -93,6 +93,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD)
+          else
+            NOTES=$(git log --pretty=format:"- %s")
+          fi
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "v${{ steps.version.outputs.version }}" \
-            --generate-notes
+            --notes "$NOTES"
