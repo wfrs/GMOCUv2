@@ -82,7 +82,7 @@ function IssueGroup({ label, items, severity = "error" }: {
         {open ? <ChevronDown className={`h-3 w-3 shrink-0 ${iconClass}`} />
                : <ChevronRight className={`h-3 w-3 shrink-0 ${iconClass}`} />}
         <span className="font-medium">{label}</span>
-        <span className="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border">
+        <span className="ml-auto font-mono text-[10px] px-1.5 py-0.5 rounded-full bg-muted border border-border">
           {items.length}
         </span>
       </button>
@@ -189,7 +189,7 @@ export default function FormblattPage() {
             </Button>
             <button
               onClick={() => setHealthOpen((v) => !v)}
-              className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted transition-colors text-muted-foreground"
+              className="flex items-center justify-center h-7 w-7 rounded-full hover:bg-muted transition-colors text-muted-foreground"
             >
               <ChevronDown className={`h-4 w-4 transition-transform ${healthOpen ? "" : "-rotate-90"}`} />
             </button>
@@ -282,12 +282,12 @@ export default function FormblattPage() {
           </div>
           <div className="flex items-center gap-2">
             {/* Language toggle */}
-            <div className="flex items-center gap-1 p-1 bg-muted rounded-lg border border-border">
+            <div className="flex items-center gap-1 p-1 bg-muted rounded-full border border-border">
               {(["de", "en"] as FormblattLang[]).map((l) => (
                 <button
                   key={l}
                   onClick={() => { if (l !== lang) setLang(l); }}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                     lang === l
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"

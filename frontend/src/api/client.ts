@@ -28,6 +28,7 @@ export interface PlasmidListItem {
   created_on: string | null;
   destroyed_on: string | null;
   recorded_on: string | null;
+  ice_part_id: string | null;
 }
 
 export interface Plasmid extends PlasmidListItem {
@@ -214,6 +215,19 @@ export const iceCredentials = {
   create: (data: Partial<IceCredentials>) => request<IceCredentials>('/ice-credentials/', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: number, data: Partial<IceCredentials>) => request<IceCredentials>(`/ice-credentials/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/ice-credentials/${id}`, { method: 'DELETE' }),
+};
+
+export interface IceSyncResult {
+  name: string;
+  status: 'created' | 'updated' | 'skipped' | 'error';
+  ice_part_id?: string;
+  error?: string;
+}
+
+export const iceSync = {
+  test: () => request<{ ok: boolean }>('/ice/test', { method: 'POST' }),
+  syncOne: (plasmidId: number) => request<IceSyncResult>(`/ice/sync/${plasmidId}`, { method: 'POST' }),
+  syncAll: () => request<IceSyncResult[]>('/ice/sync', { method: 'POST' }),
 };
 
 export interface ActivityLog {

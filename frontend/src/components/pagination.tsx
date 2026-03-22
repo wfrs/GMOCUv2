@@ -12,7 +12,7 @@ function PageBtn({
   return (
     <button
       onClick={onClick}
-      className={`h-8 min-w-8 px-2.5 rounded-md text-sm font-medium transition-colors border-0 outline-none cursor-pointer ${
+      className={`h-8 min-w-8 px-2.5 rounded-full text-sm font-medium transition-colors border-0 outline-none cursor-pointer ${
         active
           ? "bg-primary text-primary-foreground"
           : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -57,7 +57,7 @@ export function Pagination({
         <button
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground transition-colors border-0 outline-none cursor-pointer hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+          className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground transition-colors border-0 outline-none cursor-pointer hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -73,7 +73,7 @@ export function Pagination({
         <button
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
-          className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground transition-colors border-0 outline-none cursor-pointer hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+          className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground transition-colors border-0 outline-none cursor-pointer hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

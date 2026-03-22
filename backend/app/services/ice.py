@@ -1,152 +1,158 @@
 """JBEI/ICE integration service."""
 from __future__ import annotations
 
-import sqlite3
-import os
-from typing import Optional
-
-import pandas as pd
 try:
     import icebreaker
 except ImportError:
     icebreaker = None
 
+from sqlalchemy.orm import Session
 
-def upload_to_ice(
-    db_path: str,
-    settings: dict,
-    plasmid_name: Optional[str] = None,
-    only_new: bool = False,
-) -> list[str]:
-    """Upload/update plasmid entries on JBEI/ICE.
+from ..models import AppSettings, IceCredentials, Plasmid
 
-    Args:
-        db_path: Path to the SQLite database.
-        settings: Dict from database.read_settings().
-        plasmid_name: If set, only upload this specific plasmid.
-        only_new: If True, only upload newly created entries.
 
-    Returns:
-        List of newly added plasmid names.
-    """
-    if settings.get("use_ice") == 0 and not plasmid_name:
+def _build_client(creds: IceCredentials):
+    if icebreaker is None:
+        raise RuntimeError(
+            "icebreaker package is not installed. "
+            "Run: pip install icebreaker"
+        )
+    return icebreaker.IceClient({
+        "root": creds.ice_instance,
+        "token": creds.ice_token,
+        "client": creds.ice_token_client,
+    })
+
+
+def _get_settings_and_creds(db: Session) -> tuple[AppSettings, IceCredentials]:
+    settings = db.query(AppSettings).first()
+    if not settings:
+        raise ValueError("No app settings found")
+    creds = db.query(IceCredentials).filter_by(id=settings.ice_credentials_id).first()
+    if not creds:
+        raise ValueError("No ICE credentials configured")
+    return settings, creds
+
+
+def _ensure_folder(ice, initials: str) -> int:
+    """Return the ICE folder ID for the given initials, creating it if needed."""
+    folders = ice.get_collection_folders("PERSONAL")
+    for f in folders:
+        if f["folderName"] == initials:
+            return f["id"]
+    new = ice.create_folder(initials)
+    return new["id"]
+
+
+def test_connection(db: Session) -> dict:
+    """Test ICE credentials. Returns {ok: bool, error?: str}."""
+    try:
+        settings, creds = _get_settings_and_creds(db)
+        ice = _build_client(creds)
+        ice.get_collection_folders("PERSONAL")
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def sync_plasmid(db: Session, plasmid: Plasmid) -> dict:
+    """Sync one plasmid to ICE. Returns {name, status, ice_part_id?, error?}."""
+    try:
+        settings, creds = _get_settings_and_creds(db)
+        ice = _build_client(creds)
+    except Exception as exc:
+        return {"name": plasmid.name, "status": "error", "error": str(exc)}
+
+    initials = settings.initials or ""
+
+    # Skip template / copy entries (matches legacy behaviour)
+    if plasmid.name == f"p{initials}000" or "(Copy)" in (plasmid.name or ""):
+        return {"name": plasmid.name, "status": "skipped", "error": "Template or copy"}
+
+    # Honour "upload completed only" setting
+    if settings.upload_completed == 1 and plasmid.status_id != 1:
+        return {"name": plasmid.name, "status": "skipped", "error": "Not marked complete"}
+
+    try:
+        folder_id = _ensure_folder(ice, initials)
+
+        # Resolve existing ICE entry by name
+        ice_entries = ice.get_folder_entries(folder_id)
+        ice_part = next((e for e in ice_entries if e["name"] == plasmid.name), None)
+
+        if ice_part is None:
+            new = ice.create_plasmid(name=plasmid.name)
+            ice_part = ice.get_part_infos(new["id"])
+            action = "created"
+        else:
+            action = "updated"
+
+        ice_id = str(ice_part["id"])
+
+        # Resolve status label
+        status_label = (
+            plasmid.status_ref.name if plasmid.status_ref else "Planned"
+        ) or "Planned"
+
+        # Core fields
+        ice.request("PUT", f"parts/{ice_id}", data={
+            "type": "PLASMID",
+            "alias": plasmid.alias,
+            "status": status_label,
+            "shortDescription": plasmid.purpose,
+            "creator": settings.name,
+            "creatorEmail": settings.email,
+            "plasmidData": {
+                "backbone": plasmid.backbone_vector,
+                "circular": "true",
+            },
+        })
+
+        # Custom fields
+        ice.set_part_custom_field(ice_id, "Clone", plasmid.clone)
+        ice.set_part_custom_field(ice_id, "Cloning", plasmid.summary)
+        ice.set_part_custom_field(ice_id, "Entry date", plasmid.recorded_on)
+
+        for idx, cassette in enumerate(plasmid.cassettes):
+            ice.set_part_custom_field(ice_id, f"Cassette {idx + 1}", cassette.content)
+
+        # Filebrowser link — use / not os.sep so it's always a valid URL
+        if settings.use_file_browser == 1 and creds.file_browser_instance:
+            base = creds.file_browser_instance.rstrip("/")
+            ice.set_part_custom_field(
+                ice_id, "Filebrowser link", f"{base}/{initials}/{plasmid.name}"
+            )
+
+        # GenBank attachment
+        if plasmid.genbank_content:
+            try:
+                ice.delete_part_record(ice_id)
+            except Exception:
+                pass
+            ice.attach_record_to_part(
+                ice_part_id=ice_id,
+                filename=f"{plasmid.name}.gb",
+                record_text=plasmid.genbank_content,
+            )
+
+        ice.add_to_folder([ice_id], folders_ids=[folder_id])
+
+        # Persist ICE part ID back to the plasmid row
+        plasmid.ice_part_id = ice_id
+        db.commit()
+
+        return {"name": plasmid.name, "status": action, "ice_part_id": ice_id}
+
+    except Exception as exc:
+        db.rollback()
+        return {"name": plasmid.name, "status": "error", "error": str(exc)}
+
+
+def sync_all(db: Session) -> list[dict]:
+    """Sync all eligible plasmids. Returns per-plasmid result list."""
+    settings = db.query(AppSettings).first()
+    if not settings or not settings.use_ice:
         return []
 
-    configuration = {
-        "root": settings["ice_instance"],
-        "token": settings["ice_token"],
-        "client": settings["ice_token_client"],
-    }
-    ice = icebreaker.IceClient(configuration)
-    initials = settings["initials"]
-    user_name = settings["user_name"]
-    email = settings["email"]
-    upload_completed = settings["upload_completed"]
-    use_filebrowser = settings["use_filebrowser"]
-    filebrowser_instance = settings["filebrowser_instance"]
-
-    # get/create folder
-    ice_folders = ice.get_collection_folders("PERSONAL")
-    folderlist = [f['folderName'] for f in ice_folders]
-    folder_ids = [f['id'] for f in ice_folders]
-
-    folder_id = None
-    for name, fid in zip(folderlist, folder_ids):
-        if name == initials:
-            folder_id = fid
-    if initials not in folderlist:
-        new_folder = ice.create_folder(initials)
-        folder_id = new_folder['id']
-
-    ice_plasmids = ice.get_folder_entries(folder_id)
-    ice_plasmid_names = [p['name'] for p in ice_plasmids]
-
-    conn = sqlite3.connect(db_path)
-    if plasmid_name:
-        local_plasmids = pd.read_sql_query(
-            "SELECT * FROM plasmids WHERE name = (?)", conn,
-            params=(plasmid_name,)
-        )
-    else:
-        local_plasmids = pd.read_sql_query("SELECT * FROM plasmids", conn)
-    status_values = pd.read_sql_query("SELECT * FROM plasmid_statuses", conn)
-    cassettes = pd.read_sql_query("SELECT * FROM cassettes", conn)
-    conn.close()
-
-    newly_added = []
-
-    for _, plasmid in local_plasmids.iterrows():
-        if upload_completed == 1 and plasmid['status_id'] != 1:
-            continue
-        if plasmid['name'] == 'p' + initials + '000' or '(Copy)' in plasmid['name']:
-            continue
-
-        if plasmid['name'] not in ice_plasmid_names:
-            new = ice.create_plasmid(name=plasmid['name'])
-            newly_added.append(plasmid['name'])
-            new_part_id = new['id']
-            fetched = ice.get_part_infos(new_part_id)
-            ice_plasmids.append(fetched)
-            ice_plasmid_names.append(plasmid['name'])
-
-        should_update = False
-        if only_new and plasmid['name'] in newly_added:
-            should_update = True
-        elif not only_new:
-            should_update = True
-        if plasmid_name:
-            should_update = True
-
-        if plasmid['name'] in ice_plasmid_names and should_update:
-            for ice_p in ice_plasmids:
-                if plasmid['name'] == ice_p['name']:
-                    d = {
-                        "type": "PLASMID",
-                        "alias": plasmid['alias'],
-                        "status": status_values['name'][plasmid['status_id'] - 1],
-                        "shortDescription": plasmid['purpose'],
-                        "creator": user_name,
-                        "creatorEmail": email,
-                        "plasmidData": {
-                            "backbone": plasmid['backbone_vector'],
-                            "circular": "true",
-                        },
-                    }
-                    ice.request("PUT", "parts/" + str(ice_p['id']), data=d)
-
-                    ice.set_part_custom_field(ice_p['id'], 'Clone', plasmid['clone'])
-                    ice.set_part_custom_field(ice_p['id'], 'Cloning', plasmid['summary'])
-                    ice.set_part_custom_field(ice_p['id'], 'Entry date', plasmid['recorded_on'])
-
-                    my_cassettes = cassettes[
-                        cassettes['plasmid_id'] == plasmid['id']
-                    ]['content']
-                    for cidx, cassette in enumerate(my_cassettes):
-                        ice.set_part_custom_field(
-                            ice_p['id'], f'Cassette {cidx + 1}', cassette
-                        )
-
-                    if use_filebrowser == 1:
-                        link = os.sep.join([
-                            filebrowser_instance, initials, ice_p['name']
-                        ])
-                        ice.set_part_custom_field(
-                            ice_p['id'], 'Filebrowser link', link
-                        )
-
-                    if plasmid['genbank_content'] not in ('', None):
-                        try:
-                            ice.delete_part_record(ice_p['id'])
-                        except Exception:
-                            pass
-                        ice.attach_record_to_part(
-                            ice_part_id=ice_p['id'],
-                            filename=plasmid['name'] + '.gb',
-                            record_text=plasmid['genbank_content'],
-                        )
-
-                    ice.add_to_folder(
-                        [ice_p['id']], folders_ids=[folder_id]
-                    )
-
-    return newly_added
+    plasmids = db.query(Plasmid).all()
+    return [sync_plasmid(db, p) for p in plasmids]

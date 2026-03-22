@@ -51,8 +51,8 @@
 
 :root {
   /* ── Accent knobs — change these two to retheme the entire app ── */
-  --accent-hue: 134;
-  --accent-chroma: 0.21;
+  --accent-hue: 134.13;
+  --accent-chroma: 0.212;
 
   --background: oklch(0.99 0 0);
   --foreground: oklch(0.13 calc(var(--accent-chroma) * 0.06) var(--accent-hue));

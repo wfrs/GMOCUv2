@@ -53,12 +53,27 @@ export function applyAllAppearance(s: Partial<Settings>) {
 
 // ── Helpers for other pages ───────────────────────────────────────────────────
 
+export function getCurrentDateFormat(): string {
+  return _dateFormat;
+}
+
 export function formatDate(isoDate: string | null | undefined): string {
   if (!isoDate) return "";
   const parts = isoDate.slice(0, 10).split("-");
   if (parts.length !== 3) return isoDate;
   const [y, m, d] = parts;
   return _dateFormat === "eu" ? `${d}.${m}.${y}` : `${y}-${m}-${d}`;
+}
+
+/** Parse a user-typed date string (DD.MM.YYYY or YYYY-MM-DD) back to ISO YYYY-MM-DD. */
+export function parseDate(input: string): string | null {
+  if (!input.trim()) return null;
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+  // EU: DD.MM.YYYY
+  const eu = input.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (eu) return `${eu[3]}-${eu[2].padStart(2, "0")}-${eu[1].padStart(2, "0")}`;
+  return null;
 }
 
 export function isMonoGenbank(): boolean {

@@ -101,7 +101,7 @@ export function CommandPalette({
         <div className="flex items-center gap-3 px-4 py-3 border-b">
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <Input
-            className="border-0 shadow-none focus-visible:ring-0 px-0 h-7 text-base"
+            className="border-0 shadow-none focus-visible:ring-0 pl-1 pr-0 h-7 text-base"
             placeholder="Search plasmids, features, organisms…"
             value={query}
             onChange={(e) => {
@@ -111,7 +111,7 @@ export function CommandPalette({
             onKeyDown={handleKey}
             autoFocus
           />
-          <kbd className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border shrink-0">Esc</kbd>
+          <kbd className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full border shrink-0">Esc</kbd>
         </div>
 
         {results.length > 0 ? (
@@ -130,7 +130,7 @@ export function CommandPalette({
                   <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span className="flex-1 font-medium truncate">{r.primary}</span>
                   {r.secondary && <span className="text-muted-foreground truncate max-w-40">{r.secondary}</span>}
-                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
                     {TYPE_LABEL[r.type]}
                   </span>
                 </li>

@@ -73,6 +73,10 @@ _APP_SETTINGS_NEW_COLUMNS = [
     ("mono_genbank",  "INTEGER DEFAULT 0"),
 ]
 
+_PLASMIDS_NEW_COLUMNS = [
+    ("ice_part_id", "TEXT"),
+]
+
 
 def _ensure_app_settings_columns(engine) -> None:
     """Add new columns to app_settings for existing databases that predate them."""
@@ -81,6 +85,16 @@ def _ensure_app_settings_columns(engine) -> None:
         for col, definition in _APP_SETTINGS_NEW_COLUMNS:
             if col not in existing:
                 conn.execute(text(f"ALTER TABLE app_settings ADD COLUMN {col} {definition}"))
+        conn.commit()
+
+
+def _ensure_plasmids_columns(engine) -> None:
+    """Add new columns to plasmids for existing databases that predate them."""
+    with engine.connect() as conn:
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(plasmids)"))}
+        for col, definition in _PLASMIDS_NEW_COLUMNS:
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE plasmids ADD COLUMN {col} {definition}"))
         conn.commit()
 
 
@@ -93,6 +107,7 @@ def ensure_database_ready(db_path: str) -> None:
     engine = get_engine(db_path)
     Base.metadata.create_all(engine)
     _ensure_app_settings_columns(engine)
+    _ensure_plasmids_columns(engine)
 
     session = get_session(db_path)
     try:

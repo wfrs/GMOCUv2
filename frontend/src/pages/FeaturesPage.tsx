@@ -211,10 +211,8 @@ export default function FeaturesPage({ openId, onOpenIdConsumed }: FeaturesPageP
           </Button>
           <input ref={importRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFile} />
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Download className="h-3.5 w-3.5" /> Export <ChevronDown className="h-3 w-3" />
-              </Button>
+            <DropdownMenuTrigger className="inline-flex h-7 items-center justify-center gap-1.5 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium transition-all hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50">
+              <Download className="h-3.5 w-3.5" /> Export <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => window.open("/api/reports/features/export-all", "_blank")}>

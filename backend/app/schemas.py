@@ -45,6 +45,7 @@ class PlasmidListOut(BaseModel):
     created_on: str | None = None
     destroyed_on: str | None = None
     recorded_on: str | None = None
+    ice_part_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -66,6 +67,7 @@ class PlasmidOut(BaseModel):
     created_on: str | None = None
     destroyed_on: str | None = None
     recorded_on: str | None = None
+    ice_part_id: str | None = None
     cassettes: list[CassetteOut] = []
     gmos: list[GMOOut] = []
     attachments: list[AttachmentMeta] = []

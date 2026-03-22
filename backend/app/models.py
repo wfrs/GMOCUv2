@@ -49,6 +49,7 @@ class Plasmid(Base):
     created_on = Column(Text, default=text("date('now')"))
     destroyed_on = Column(Text)
     recorded_on = Column(Text, default=text("date('now')"))
+    ice_part_id = Column(Text)
 
     status_ref = relationship("PlasmidStatus", foreign_keys=[status_id])
     cassettes = relationship("Cassette", back_populates="plasmid", lazy="select")

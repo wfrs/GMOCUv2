@@ -16,7 +16,7 @@ from .application.database_import import (
 )
 from .bootstrap import prepare_runtime_database
 from .config import APP_NAME, VERSION, DATABASE_PATH
-from .routers import plasmids, features, organisms, settings, organism_selections, ice_credentials, activity_logs, reports
+from .routers import plasmids, features, organisms, settings, organism_selections, ice_credentials, ice, activity_logs, reports
 
 
 @asynccontextmanager
@@ -48,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(settings.router, prefix="/api")
     app.include_router(organism_selections.router, prefix="/api")
     app.include_router(ice_credentials.router, prefix="/api")
+    app.include_router(ice.router, prefix="/api")
     app.include_router(activity_logs.router, prefix="/api")
     app.include_router(reports.router, prefix="/api")
     return app

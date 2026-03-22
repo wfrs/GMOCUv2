@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Construction, Copy, Check,
   Sun, Moon, Monitor, ExternalLink, Tag,
   SlidersHorizontal, User, Leaf, Plug, Info,
-  ALargeSmall, LayoutPanelLeft,
+  ALargeSmall, LayoutPanelLeft, Loader2, RefreshCw, Wifi, Upload,
 } from "lucide-react";
 import { applyAllAppearance, formatDate } from "@/lib/appearance";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
@@ -15,11 +15,14 @@ import {
   organismSelections,
   organismFavourites,
   releases as releasesApi,
+  iceCredentials as iceCredentialsApi,
+  iceSync,
   type Settings,
   type Organism,
   type OrganismSelectionItem,
   type OrganismFavouriteItem,
   type ReleaseNote,
+  type IceCredentials,
 } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,11 +227,14 @@ const NAV_ITEMS: { id: NavSection; label: string; icon: React.ElementType }[] = 
 interface SettingsPageProps {
   accentPresetId: string;
   onAccentChange: (id: string) => void;
+  onImportDatabase: () => void;
+  onUserNameChange: (name: string) => void;
+  onProfileChange?: (name: string, initials: string) => void;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SettingsPage({ accentPresetId, onAccentChange }: SettingsPageProps) {
+export default function SettingsPage({ accentPresetId, onAccentChange, onImportDatabase, onUserNameChange, onProfileChange }: SettingsPageProps) {
   const { theme, setTheme } = useTheme();
   const [activeSection, setActiveSection] = useState<NavSection>("general");
   const [data, setData] = useState<Settings | null>(null);
@@ -240,6 +246,9 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
   const [favCombo, setFavCombo] = useState("");
   const [releaseNotes, setReleaseNotes] = useState<ReleaseNote[]>([]);
   const [releasesLoading, setReleasesLoading] = useState(true);
+  const [creds, setCreds] = useState<IceCredentials | null>(null);
+  const [iceTesting, setIceTesting] = useState(false);
+  const [iceSyncing, setIceSyncing] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -247,12 +256,14 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
       organismsApi.list(),
       organismSelections.list(),
       organismFavourites.list(),
+      iceCredentialsApi.list(),
     ])
-      .then(([s, orgs, targets, favs]) => {
+      .then(([s, orgs, targets, favs, credsList]) => {
         setData(s);
         setAllOrganisms(orgs);
         setTargetOrganisms(targets);
         setFavOrganisms(favs);
+        if (credsList.length > 0) setCreds(credsList[0]);
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load settings"))
       .finally(() => setLoading(false));
@@ -269,6 +280,10 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
     try {
       const updated = await settingsApi.update({ [field]: value });
       setData(updated);
+      if (field === "name" && typeof value === "string") onUserNameChange(value);
+      if ((field === "name" || field === "initials") && updated.name && updated.initials) {
+        onProfileChange?.(updated.name, updated.initials);
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to save");
     }
@@ -328,6 +343,47 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
       setFavOrganisms((prev) => prev.filter((o) => o.id !== id));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to remove");
+    }
+  };
+
+  const updateCred = async (field: keyof IceCredentials, value: string) => {
+    if (!creds) return;
+    try {
+      const updated = await iceCredentialsApi.update(creds.id, { [field]: value });
+      setCreds(updated);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    }
+  };
+
+  const testIceConnection = async () => {
+    setIceTesting(true);
+    try {
+      await iceSync.test();
+      toast.success("Connected to ICE successfully");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Connection failed");
+    } finally {
+      setIceTesting(false);
+    }
+  };
+
+  const syncAllToIce = async () => {
+    setIceSyncing(true);
+    try {
+      const results = await iceSync.syncAll();
+      const created = results.filter((r) => r.status === "created").length;
+      const updated = results.filter((r) => r.status === "updated").length;
+      const errors  = results.filter((r) => r.status === "error").length;
+      const parts = [];
+      if (created) parts.push(`${created} created`);
+      if (updated) parts.push(`${updated} updated`);
+      if (errors)  parts.push(`${errors} failed`);
+      toast[errors ? "error" : "success"](`ICE sync: ${parts.join(", ") || "nothing to sync"}`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setIceSyncing(false);
     }
   };
 
@@ -552,6 +608,21 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
             />
           </SettingsRow>
         </SettingsGroup>
+
+        <SettingsGroup label="Data">
+          <div className="flex items-center justify-between px-4 py-3 gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium leading-snug">Import Database</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                Replace the current database with a backup or exported .db file.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={onImportDatabase}>
+              <Upload className="h-3.5 w-3.5" />
+              Import…
+            </Button>
+          </div>
+        </SettingsGroup>
       </div>
     ),
 
@@ -719,8 +790,81 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
               onChange={() => toggleField("use_file_browser", data.use_file_browser)}
             />
           </SettingsRow>
-          {(!!data.use_ice || !!data.use_file_browser) && (
-            <ComingSoon label="Server credentials management" />
+          {!!data.use_file_browser && creds && (
+            <>
+              <SettingsInput
+                id="s-fb-instance"
+                label="Filebrowser URL"
+                placeholder="https://files.example.com"
+                value={creds.file_browser_instance || ""}
+                onChange={(v) => setCreds({ ...creds, file_browser_instance: v })}
+                onBlur={(v) => updateCred("file_browser_instance", v)}
+              />
+              <SettingsInput
+                id="s-fb-user"
+                label="Username"
+                value={creds.file_browser_user || ""}
+                onChange={(v) => setCreds({ ...creds, file_browser_user: v })}
+                onBlur={(v) => updateCred("file_browser_user", v)}
+              />
+              <SettingsInput
+                id="s-fb-password"
+                label="Password"
+                type="password"
+                value={creds.file_browser_password || ""}
+                onChange={(v) => setCreds({ ...creds, file_browser_password: v })}
+                onBlur={(v) => updateCred("file_browser_password", v)}
+              />
+            </>
+          )}
+          {!!data.use_ice && creds && (
+            <>
+              <SettingsInput
+                id="s-ice-instance"
+                label="ICE Instance URL"
+                placeholder="https://your-ice-server/"
+                value={creds.ice_instance || ""}
+                onChange={(v) => setCreds({ ...creds, ice_instance: v })}
+                onBlur={(v) => updateCred("ice_instance", v)}
+              />
+              <SettingsInput
+                id="s-ice-token-client"
+                label="Token Client"
+                placeholder="X-ICE-API-Token-Client"
+                value={creds.ice_token_client || ""}
+                onChange={(v) => setCreds({ ...creds, ice_token_client: v })}
+                onBlur={(v) => updateCred("ice_token_client", v)}
+              />
+              <SettingsInput
+                id="s-ice-token"
+                label="API Token"
+                type="password"
+                placeholder="Your ICE API token"
+                value={creds.ice_token || ""}
+                onChange={(v) => setCreds({ ...creds, ice_token: v })}
+                onBlur={(v) => updateCred("ice_token", v)}
+              />
+              <div className="flex items-center gap-2 px-4 py-3">
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={testIceConnection} disabled={iceTesting}
+                >
+                  {iceTesting
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Wifi className="h-3.5 w-3.5" />}
+                  Test connection
+                </Button>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={syncAllToIce} disabled={iceSyncing}
+                >
+                  {iceSyncing
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RefreshCw className="h-3.5 w-3.5" />}
+                  Sync all to ICE
+                </Button>
+              </div>
+            </>
           )}
           <SettingsRow
             label="Zip files"
@@ -775,7 +919,6 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
         </SettingsGroup>
 
         <SettingsGroup label="Coming Soon">
-          <ComingSoon label="Upload to JBEI/ice, Filebrowser, and GDrive" />
           <ComingSoon label="Google Sheets glossary sync" />
         </SettingsGroup>
       </div>
@@ -843,7 +986,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
                       {r.version}
                     </a>
                     {r.prerelease && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 text-amber-600 dark:text-amber-400">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-300 text-amber-600 dark:text-amber-400">
                         pre-release
                       </span>
                     )}

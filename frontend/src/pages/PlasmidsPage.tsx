@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDate } from "@/lib/appearance";
+import { DateInput } from "@/components/date-input";
 
 const ISO_DATE_RE = /\d{4}-\d{2}-\d{2}/g;
 function fmtSummary(s: string | null | undefined): string {
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  plasmids, organismSelections,
+  plasmids, organismSelections, iceSync,
   type Plasmid, type PlasmidListItem, type OrganismSelectionItem,
 } from "@/api/client";
 import { useSort } from "@/hooks/use-sort";
@@ -79,6 +80,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
   const [newGmoTargetRiskGroup, setNewGmoTargetRiskGroup] = useState(1);
   const [newGmoApproval, setNewGmoApproval] = useState("-");
   const [newGmoCreatedOn, setNewGmoCreatedOn] = useState(todayString());
+  const [iceSyncing, setIceSyncing] = useState(false);
   const undoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gbFileRef = useRef<HTMLInputElement>(null);
   const attachFileRef = useRef<HTMLInputElement>(null);
@@ -163,6 +165,24 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
       toast.success(`Duplicated as "${copy.name}"`);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to duplicate");
+    }
+  };
+
+  // ── ICE sync ──
+  const handleSyncToIce = async () => {
+    if (!selected) return;
+    setIceSyncing(true);
+    try {
+      const result = await iceSync.syncOne(selected.id);
+      setSelected({ ...selected, ice_part_id: result.ice_part_id ?? selected.ice_part_id });
+      setData((prev) => prev.map((p) => p.id === selected.id
+        ? { ...p, ice_part_id: result.ice_part_id ?? p.ice_part_id }
+        : p));
+      toast.success(`ICE: ${result.status} "${result.name}"`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "ICE sync failed");
+    } finally {
+      setIceSyncing(false);
     }
   };
 
@@ -364,10 +384,27 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
               <Badge variant="outline" className={STATUS_MAP[selected.status_id ?? 4].className}>
                 {STATUS_MAP[selected.status_id ?? 4].label}
               </Badge>
-              <Button variant="ghost" size="sm" className="gap-1.5 ml-auto"
-                onClick={() => { setExpanded(false); setSheetOpen(true); }}>
-                <Minimize2 className="h-4 w-4" /> Collapse
-              </Button>
+              {selected.ice_part_id && (
+                <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200/60">
+                  ICE #{selected.ice_part_id}
+                </Badge>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger render={
+                    <Button variant="outline" size="sm" className="gap-1.5"
+                      onClick={handleSyncToIce} disabled={iceSyncing} />
+                  }>
+                    {iceSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    {!iceSyncing && "Sync to ICE"}
+                  </TooltipTrigger>
+                  <TooltipContent>Upload / update this plasmid on JBEI/ICE</TooltipContent>
+                </Tooltip>
+                <Button variant="ghost" size="sm" className="gap-1.5"
+                  onClick={() => { setExpanded(false); setSheetOpen(true); }}>
+                  <Minimize2 className="h-4 w-4" /> Collapse
+                </Button>
+              </div>
             </div>
 
             {/* Workflow progress banner (expanded) */}
@@ -478,9 +515,8 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="ep-recorded-on">Entry Date</Label>
-                      <Input
+                      <DateInput
                         id="ep-recorded-on"
-                        type="date"
                         value={selected.recorded_on || ""}
                         onChange={(e) => setSelected({ ...selected, recorded_on: e.target.value || null })}
                         onBlur={(e) => handleUpdate("recorded_on", e.target.value || null)}
@@ -555,7 +591,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     <div className="flex items-center justify-between mb-3">
                       <Label className="text-xs uppercase tracking-wider text-muted-foreground">GMOs</Label>
                     </div>
-                    <div className="grid grid-cols-[minmax(0,1.4fr)_96px_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 mb-3">
+                    <div className="grid grid-cols-[minmax(0,1.4fr)_72px_minmax(0,1fr)_auto_auto] gap-2 mb-3">
                       <Select value={newGmoOrganism || undefined} onValueChange={(value) => setNewGmoOrganism(value ?? "")}>
                         <SelectTrigger className="w-full"><SelectValue placeholder="Organism…" /></SelectTrigger>
                         <SelectContent>
@@ -568,7 +604,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                       </Select>
                       <Input type="number" min={1} max={4} value={newGmoTargetRiskGroup} onChange={(e) => setNewGmoTargetRiskGroup(Number(e.target.value) || 1)} placeholder="RG" />
                       <Input value={newGmoApproval} onChange={(e) => setNewGmoApproval(e.target.value)} placeholder="Approval" />
-                      <Input type="date" value={newGmoCreatedOn} onChange={(e) => setNewGmoCreatedOn(e.target.value)} />
+                      <DateInput value={newGmoCreatedOn} onChange={(e) => setNewGmoCreatedOn(e.target.value)} />
                       <Button variant="outline" size="sm" className="h-9" onClick={handleAddGmo}>Add</Button>
                     </div>
                     <div className="space-y-1.5">
@@ -578,14 +614,14 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                             <span className="font-medium">{g.organism_name}</span>
                             {g.destroyed_on && <Badge variant="destructive" className="text-[10px]">Destroyed</Badge>}
                           </div>
-                          <div className="grid grid-cols-[minmax(0,1.2fr)_92px_minmax(0,1fr)_minmax(0,1fr)] gap-2 mb-2">
+                          <div className="grid grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)_auto] gap-2 mb-2">
                             <Input value={g.organism_name || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, organism_name: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { organism_name: e.target.value || null })} />
                             <Input type="number" min={1} max={4} value={g.target_risk_group ?? 1} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, target_risk_group: Number(e.target.value) || 1 } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { target_risk_group: Number(e.target.value) || 1 })} />
                             <Input value={g.approval || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, approval: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { approval: e.target.value || null })} />
-                            <Input type="date" value={g.created_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, created_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { created_on: e.target.value || null })} />
+                            <DateInput value={g.created_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, created_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { created_on: e.target.value || null })} />
                           </div>
-                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
-                            <Input type="date" value={g.destroyed_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, destroyed_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { destroyed_on: e.target.value || null })} />
+                          <div className="flex gap-2 items-center">
+                            <DateInput value={g.destroyed_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, destroyed_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { destroyed_on: e.target.value || null })} />
                             <div className="flex items-center gap-0.5 ml-2">
                             {!g.destroyed_on && (
                               <Tooltip>
@@ -777,20 +813,36 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
             ) : selected ? (
               <>
                 <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
+                  <SheetTitle className="flex items-center gap-2 flex-wrap">
                     {selected.name}
                     <Badge variant="outline" className={`ml-1 ${STATUS_MAP[selected.status_id ?? 4].className}`}>
                       {STATUS_MAP[selected.status_id ?? 4].label}
                     </Badge>
-                    <Tooltip>
-                      <TooltipTrigger render={
-                        <Button variant="ghost" size="icon-sm" className="ml-auto mr-7"
-                          onClick={() => { setExpanded(true); setSheetOpen(false); }} />
-                      }>
-                        <Maximize2 className="h-4 w-4" />
-                      </TooltipTrigger>
-                      <TooltipContent>Expand to full page</TooltipContent>
-                    </Tooltip>
+                    {selected.ice_part_id && (
+                      <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200/60">
+                        ICE #{selected.ice_part_id}
+                      </Badge>
+                    )}
+                    <div className="ml-auto flex items-center gap-1">
+                      <Tooltip>
+                        <TooltipTrigger render={
+                          <Button variant="ghost" size="icon-sm"
+                            onClick={handleSyncToIce} disabled={iceSyncing} />
+                        }>
+                          {iceSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        </TooltipTrigger>
+                        <TooltipContent>Sync to JBEI/ICE</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger render={
+                          <Button variant="ghost" size="icon-sm" className="mr-7"
+                            onClick={() => { setExpanded(true); setSheetOpen(false); }} />
+                        }>
+                          <Maximize2 className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>Expand to full page</TooltipContent>
+                      </Tooltip>
+                    </div>
                   </SheetTitle>
                 </SheetHeader>
 
@@ -900,9 +952,8 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="p-recorded-on">Entry Date</Label>
-                      <Input
+                      <DateInput
                         id="p-recorded-on"
-                        type="date"
                         value={selected.recorded_on || ""}
                         onChange={(e) => setSelected({ ...selected, recorded_on: e.target.value || null })}
                         onBlur={(e) => handleUpdate("recorded_on", e.target.value || null)}
@@ -969,7 +1020,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-xs uppercase tracking-wider text-muted-foreground">GMOs</Label>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-[minmax(0,1.4fr)_92px_minmax(0,1fr)]">
+                    <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-[minmax(0,1.4fr)_72px_minmax(0,1fr)]">
                       <Select value={newGmoOrganism || undefined} onValueChange={(value) => setNewGmoOrganism(value ?? "")}>
                         <SelectTrigger className="w-full"><SelectValue placeholder="Organism…" /></SelectTrigger>
                         <SelectContent>
@@ -983,8 +1034,8 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                       <Input type="number" min={1} max={4} value={newGmoTargetRiskGroup} onChange={(e) => setNewGmoTargetRiskGroup(Number(e.target.value) || 1)} placeholder="RG" />
                       <Input value={newGmoApproval} onChange={(e) => setNewGmoApproval(e.target.value)} placeholder="Approval" />
                     </div>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 mb-2">
-                      <Input type="date" value={newGmoCreatedOn} onChange={(e) => setNewGmoCreatedOn(e.target.value)} />
+                    <div className="flex gap-2 mb-2">
+                      <DateInput value={newGmoCreatedOn} onChange={(e) => setNewGmoCreatedOn(e.target.value)} />
                       <Button variant="outline" size="sm" className="h-9" onClick={handleAddGmo}>Add</Button>
                     </div>
                     <div className="space-y-1.5">
@@ -994,14 +1045,14 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                             <span className="font-medium">{g.organism_name}</span>
                             {g.destroyed_on && <Badge variant="destructive" className="text-[10px]">Destroyed</Badge>}
                           </div>
-                          <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-[minmax(0,1.2fr)_92px_minmax(0,1fr)]">
+                          <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-[minmax(0,1.2fr)_72px_minmax(0,1fr)]">
                             <Input value={g.organism_name || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, organism_name: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { organism_name: e.target.value || null })} />
                             <Input type="number" min={1} max={4} value={g.target_risk_group ?? 1} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, target_risk_group: Number(e.target.value) || 1 } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { target_risk_group: Number(e.target.value) || 1 })} />
                             <Input value={g.approval || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, approval: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { approval: e.target.value || null })} />
                           </div>
-                          <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-2">
-                            <Input type="date" value={g.created_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, created_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { created_on: e.target.value || null })} />
-                            <Input type="date" value={g.destroyed_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, destroyed_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { destroyed_on: e.target.value || null })} />
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            <DateInput value={g.created_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, created_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { created_on: e.target.value || null })} />
+                            <DateInput value={g.destroyed_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, destroyed_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { destroyed_on: e.target.value || null })} />
                           </div>
                           <div className="flex items-center gap-0.5 ml-2">
                             {!g.destroyed_on && (
