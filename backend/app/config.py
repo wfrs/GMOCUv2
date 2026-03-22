@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 APP_NAME = "GMOCU"
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 # Default database location: ~/GMOCU/gmocu-v2.db
 # Override with GMOCU_DATABASE env var
