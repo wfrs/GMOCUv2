@@ -219,15 +219,13 @@ function AppInner() {
             <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-hidden">
               {/* Search */}
               {sidebarCollapsed ? (
-                <div className="w-full">
+                <div className="w-full flex justify-center">
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        className="h-9 w-9 mx-auto flex items-center justify-center rounded-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground transition-colors"
-                        onClick={() => setPaletteOpen(true)}
-                      >
-                        <Search className="h-5 w-5" />
-                      </button>
+                    <TooltipTrigger
+                      className="h-9 w-9 flex items-center justify-center rounded-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground transition-colors"
+                      onClick={() => setPaletteOpen(true)}
+                    >
+                      <Search className="h-5 w-5" />
                     </TooltipTrigger>
                     <TooltipContent side="right">Search</TooltipContent>
                   </Tooltip>
@@ -255,14 +253,11 @@ function AppInner() {
                   return (
                     <div key={item.id} className="w-full flex justify-center">
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className={`h-9 w-9 p-0 flex items-center justify-center shrink-0 rounded-full ${isActive ? activeClass : inactiveClass}`}
-                            onClick={() => setActivePage(item.id)}
-                          >
-                            <Icon className={`h-5 w-5 ${isActive ? "text-sidebar-primary" : ""}`} />
-                          </Button>
+                        <TooltipTrigger
+                          className={`h-9 w-9 flex items-center justify-center rounded-full transition-colors ${isActive ? activeClass : inactiveClass}`}
+                          onClick={() => setActivePage(item.id)}
+                        >
+                          <Icon className={`h-5 w-5 ${isActive ? "text-sidebar-primary" : ""}`} />
                         </TooltipTrigger>
                         <TooltipContent side="right">{item.label}</TooltipContent>
                       </Tooltip>
@@ -290,14 +285,11 @@ function AppInner() {
               {sidebarCollapsed ? (
                 <div className="w-full flex justify-center">
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className={`h-9 w-9 p-0 flex items-center justify-center shrink-0 rounded-full ${activePage === "settings" ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground"}`}
-                        onClick={() => setActivePage("settings")}
-                      >
-                        <SettingsIcon className={`h-5 w-5 ${activePage === "settings" ? "text-sidebar-primary" : ""}`} />
-                      </Button>
+                    <TooltipTrigger
+                      className={`h-9 w-9 flex items-center justify-center rounded-full transition-colors ${activePage === "settings" ? "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground"}`}
+                      onClick={() => setActivePage("settings")}
+                    >
+                      <SettingsIcon className={`h-5 w-5 ${activePage === "settings" ? "text-sidebar-primary" : ""}`} />
                     </TooltipTrigger>
                     <TooltipContent side="right">Settings</TooltipContent>
                   </Tooltip>
@@ -318,18 +310,14 @@ function AppInner() {
             {sidebarCollapsed ? (
               <div className="px-2 py-3 border-t border-sidebar-border flex flex-col items-center gap-1.5">
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="h-7 w-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-xs font-semibold text-sidebar-primary cursor-default select-none">
-                      {userName ? userName[0].toUpperCase() : "?"}
-                    </div>
+                  <TooltipTrigger className="h-7 w-7 rounded-full bg-sidebar-primary/20 flex items-center justify-center text-xs font-semibold text-sidebar-primary cursor-default select-none">
+                    {userName ? userName[0].toUpperCase() : "?"}
                   </TooltipTrigger>
                   <TooltipContent side="right">{userName || "Set name in Settings"}</TooltipContent>
                 </Tooltip>
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="h-6 w-6 flex items-center justify-center rounded-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground transition-colors">
-                      {theme === "light" ? <Sun className="h-3.5 w-3.5" /> : theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
-                    </button>
+                  <DropdownMenuTrigger className="h-6 w-6 flex items-center justify-center rounded-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/8 hover:text-sidebar-foreground transition-colors">
+                    {theme === "light" ? <Sun className="h-3.5 w-3.5" /> : theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
                   </DropdownMenuTrigger>
                   <DropdownMenuContent side="right" align="end">
                     <DropdownMenuItem onClick={() => setTheme("light")}><Sun className="h-4 w-4 mr-2" />Light</DropdownMenuItem>
