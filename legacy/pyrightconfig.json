@@ -1,9 +1,0 @@
-{
-  "reportOptionalMemberAccess": false,
-  "reportOptionalSubscript": false,
-  "reportArgumentType": false,
-  "reportOperatorIssue": false,
-  "reportAttributeAccessIssue": false,
-  "reportMissingImports": false,
-  "reportOptionalIterable": false
-}

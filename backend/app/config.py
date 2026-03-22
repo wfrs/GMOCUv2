@@ -6,7 +6,9 @@ from pathlib import Path
 APP_NAME = "GMOCU"
 VERSION = "2.0.0"
 
-# Default database location: ~/GMOCU/gmocu.db
+# Default database location: ~/GMOCU/gmocu-v2.db
 # Override with GMOCU_DATABASE env var
 DATA_DIR = Path.home() / "GMOCU"
-DATABASE_PATH = Path(os.environ.get("GMOCU_DATABASE", str(DATA_DIR / "gmocu.db")))
+LEGACY_DATABASE_PATH = DATA_DIR / "gmocu.db"
+DEFAULT_DATABASE_PATH = DATA_DIR / "gmocu-v2.db"
+DATABASE_PATH = Path(os.environ.get("GMOCU_DATABASE", str(DEFAULT_DATABASE_PATH)))

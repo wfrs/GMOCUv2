@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from ..errors import not_found
 from ..models import Attachment, Cassette, GMO, Plasmid
-from ..schemas import GMOCreate, GenBankUpload, PlasmidCreate, PlasmidUpdate
+from ..schemas import GMOCreate, GMOUpdate, GenBankUpload, PlasmidCreate, PlasmidUpdate
+from .activity_logs import log_action
 
 
 @dataclass
@@ -63,11 +64,14 @@ def create_plasmid(db: Session, data: PlasmidCreate) -> Plasmid:
         clone=payload["clone"],
         backbone_vector=payload["backbone_vector"],
         marker=payload["marker"],
+        target_organism_selection_id=payload["target_organism_selection_id"],
         target_risk_group=payload["target_risk_group"],
+        recorded_on=payload["recorded_on"],
     )
     db.add(plasmid)
     db.flush()
     db.add(Cassette(content="Empty", plasmid_id=plasmid.id))
+    log_action(db, "create", "plasmid", plasmid.id, plasmid.name)
     db.commit()
     db.refresh(plasmid)
     return plasmid
@@ -76,6 +80,10 @@ def create_plasmid(db: Session, data: PlasmidCreate) -> Plasmid:
 def update_plasmid(db: Session, plasmid_id: int, data: PlasmidUpdate) -> Plasmid:
     plasmid = get_plasmid(db, plasmid_id)
     for key, value in data.model_dump(exclude_unset=True).items():
+        old = getattr(plasmid, key, None)
+        if str(old) != str(value):
+            log_action(db, "update", "plasmid", plasmid.id, plasmid.name,
+                       field=key, old_value=str(old) if old is not None else None, new_value=str(value) if value is not None else None)
         setattr(plasmid, key, value)
     db.commit()
     db.refresh(plasmid)
@@ -99,6 +107,8 @@ def duplicate_plasmid(db: Session, plasmid_id: int) -> Plasmid:
     db.flush()
     for cassette in source.cassettes:
         db.add(Cassette(content=cassette.content, plasmid_id=plasmid_copy.id))
+    log_action(db, "duplicate", "plasmid", plasmid_copy.id, plasmid_copy.name,
+               old_value=source.name)
     db.commit()
     db.refresh(plasmid_copy)
     return plasmid_copy
@@ -106,6 +116,7 @@ def duplicate_plasmid(db: Session, plasmid_id: int) -> Plasmid:
 
 def delete_plasmid(db: Session, plasmid_id: int) -> None:
     plasmid = get_plasmid(db, plasmid_id)
+    log_action(db, "delete", "plasmid", plasmid.id, plasmid.name)
     db.delete(plasmid)
     db.commit()
 
@@ -149,20 +160,43 @@ def list_gmos(db: Session, plasmid_id: int) -> list[GMO]:
 
 def add_gmo(db: Session, plasmid_id: int, data: GMOCreate) -> GMO:
     get_plasmid(db, plasmid_id)
-    today = str(date.today())
-    summary = (
-        f"RG {data.target_risk_group}   |   Approval: {data.approval}   |   "
-        f"{today}   -   tbd   |   {data.organism_name}"
-    )
+    created_on = data.created_on or str(date.today())
     gmo = GMO(
         organism_name=data.organism_name,
         approval=data.approval,
         target_risk_group=data.target_risk_group,
         plasmid_id=plasmid_id,
-        summary=summary,
-        created_on=today,
+        summary=_build_gmo_summary(
+            organism_name=data.organism_name,
+            approval=data.approval,
+            target_risk_group=data.target_risk_group,
+            created_on=created_on,
+            destroyed_on=data.destroyed_on,
+        ),
+        created_on=created_on,
+        destroyed_on=data.destroyed_on,
     )
     db.add(gmo)
+    db.commit()
+    db.refresh(gmo)
+    return gmo
+
+
+def update_gmo(db: Session, gmo_id: int, data: GMOUpdate) -> GMO:
+    gmo = db.query(GMO).filter(GMO.id == gmo_id).first()
+    if gmo is None:
+        raise not_found("GMO not found")
+
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(gmo, key, value)
+
+    gmo.summary = _build_gmo_summary(
+        organism_name=gmo.organism_name,
+        approval=gmo.approval,
+        target_risk_group=gmo.target_risk_group,
+        created_on=gmo.created_on,
+        destroyed_on=gmo.destroyed_on,
+    )
     db.commit()
     db.refresh(gmo)
     return gmo
@@ -181,9 +215,35 @@ def destroy_gmo(db: Session, gmo_id: int) -> GMO:
     if gmo is None:
         raise not_found("GMO not found")
     gmo.destroyed_on = str(date.today())
+    gmo.summary = _build_gmo_summary(
+        organism_name=gmo.organism_name,
+        approval=gmo.approval,
+        target_risk_group=gmo.target_risk_group,
+        created_on=gmo.created_on,
+        destroyed_on=gmo.destroyed_on,
+    )
     db.commit()
     db.refresh(gmo)
     return gmo
+
+
+def _build_gmo_summary(
+    *,
+    organism_name: str | None,
+    approval: str | None,
+    target_risk_group: int | None,
+    created_on: str | None,
+    destroyed_on: str | None,
+) -> str:
+    created_label = created_on or "tbd"
+    destroyed_label = destroyed_on or "tbd"
+    organism_label = organism_name or "-"
+    approval_label = approval or "-"
+    rg_label = target_risk_group if target_risk_group is not None else "-"
+    return (
+        f"RG {rg_label}   |   Approval: {approval_label}   |   "
+        f"{created_label}   -   {destroyed_label}   |   {organism_label}"
+    )
 
 
 def get_genbank_download(db: Session, plasmid_id: int) -> DownloadPayload:

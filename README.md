@@ -95,7 +95,8 @@ npm run build
 
 - Runtime storage is a local SQLite database.
 - The backend can migrate legacy GMOCU databases during startup or upload.
-- The active user database defaults to `~/GMOCU/gmocu.db`.
+- The active user database defaults to `~/GMOCU/gmocu-v2.db`.
+- The legacy desktop app still uses `~/GMOCU/gmocu.db`, so the filenames are now separated on purpose.
 - Example databases in `example/` are useful for testing migration paths.
 
 ## Repository Guide

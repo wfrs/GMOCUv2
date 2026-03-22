@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Search, X, Download } from "lucide-react";
+import { Plus, Trash2, Search, X, Download, Upload, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { features, type Feature } from "@/api/client";
 import { useSort } from "@/hooks/use-sort";
@@ -13,6 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -51,6 +58,7 @@ export default function FeaturesPage({ openId, onOpenIdConsumed }: FeaturesPageP
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const undoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const { sorted, sortKey, sortDir, toggle: toggleSort } = useSort(data, "id");
   const toggle = toggleSort as (key: string) => void;
@@ -152,10 +160,31 @@ export default function FeaturesPage({ openId, onOpenIdConsumed }: FeaturesPageP
   };
 
   // ── Export ──
-  const handleExport = () => {
+  const handleExportCsv = () => {
     exportCsv("features.csv", sorted.map((f) => ({
       id: f.id, annotation: f.annotation, alias: f.alias, risk: f.risk, organism: f.organism, uid: f.uid,
     })));
+  };
+
+  // ── Import from Excel ──
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/reports/features/import", { method: "POST", body: formData });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || res.statusText);
+      }
+      const { created, updated, skipped } = await res.json();
+      toast.success(`Import complete: ${created} created, ${updated} updated, ${skipped} skipped`);
+      load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Import failed");
+    }
   };
 
   const toggleId = (id: number) => setSelectedIds((prev) => {
@@ -177,9 +206,29 @@ export default function FeaturesPage({ openId, onOpenIdConsumed }: FeaturesPageP
           <p className="text-sm text-muted-foreground mt-1">{data.length} feature{data.length !== 1 ? "s" : ""} in glossary</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExport}>
-            <Download className="h-3.5 w-3.5" /> Export CSV
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => importRef.current?.click()}>
+            <Upload className="h-3.5 w-3.5" /> Import Excel
           </Button>
+          <input ref={importRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFile} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Download className="h-3.5 w-3.5" /> Export <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => window.open("/api/reports/features/export-all", "_blank")}>
+                Export all to Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open("/api/reports/features/export-used", "_blank")}>
+                Export used to Excel
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExportCsv}>
+                Export CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" /> New Feature
           </Button>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Dna, FlaskConical, Bug, Settings as SettingsIcon, Upload, Search, Sun, Moon, Monitor } from "lucide-react";
+import { Dna, FlaskConical, Bug, Settings as SettingsIcon, Upload, Search, Sun, Moon, Monitor, History, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,22 +8,35 @@ import { useTheme } from "@/components/theme-context";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { database, plasmids, features, organisms } from "@/api/client";
-import type { PlasmidListItem, Feature, Organism } from "@/api/client";
+import type {
+  DatabaseImportJob,
+  PlasmidListItem,
+  Feature,
+  Organism,
+  DatabaseImportReport,
+  DatabaseImportResult,
+} from "@/api/client";
 import { useAccentColor } from "@/hooks/use-accent-color";
 import { CommandPalette } from "@/components/command-palette";
+import { DatabaseImportDialog } from "@/components/database-import-dialog";
 import PlasmidsPage from "./pages/PlasmidsPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import OrganismsPage from "./pages/OrganismsPage";
 import SettingsPage from "./pages/SettingsPage";
+import ActivityPage from "./pages/ActivityPage";
+import FormblattPage from "./pages/FormblattPage";
 
 const navItems = [
   { id: "plasmids", label: "Plasmids", icon: Dna },
   { id: "features", label: "Features", icon: FlaskConical },
   { id: "organisms", label: "Organisms", icon: Bug },
+  { id: "activity", label: "Activity", icon: History },
+  { id: "formblatt", label: "Reports", icon: ScrollText },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
 type PageId = (typeof navItems)[number]["id"];
+type ImportDialogMode = "review" | "importing" | "complete" | "error";
 
 function SidebarThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -58,6 +71,13 @@ export default function App() {
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { presetId, setPresetId } = useAccentColor();
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importDialogMode, setImportDialogMode] = useState<ImportDialogMode>("review");
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [importReport, setImportReport] = useState<DatabaseImportReport | null>(null);
+  const [importJob, setImportJob] = useState<DatabaseImportJob | null>(null);
+  const [importResult, setImportResult] = useState<DatabaseImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Command palette data
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -106,11 +126,48 @@ export default function App() {
   };
 
   const handleDatabaseUpload = async (file: File) => {
+    setImportError(null);
+    setImportResult(null);
+    setImportReport(null);
+    setImportJob(null);
+    setImportDialogMode("review");
     try {
-      await database.upload(file);
+      const report = await database.inspect(file);
+      setPendingImportFile(file);
+      setImportReport(report);
+      setImportDialogOpen(true);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to inspect database");
+    }
+  };
+
+  const confirmDatabaseImport = async () => {
+    if (!pendingImportFile || !importReport) return;
+
+    setImportDialogMode("importing");
+    setImportError(null);
+
+    try {
+      let job = await database.startImportJob(pendingImportFile);
+      setImportJob(job);
+
+      while (job.status === "queued" || job.status === "running") {
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+        job = await database.getImportJob(job.job_id);
+        setImportJob(job);
+      }
+
+      if (job.status === "failed") {
+        throw new Error(job.error || "Failed to import database");
+      }
+
+      setImportResult(job.result);
+      setImportDialogMode("complete");
       toast.success("Database imported successfully");
       setRefreshKey((k) => k + 1); // force re-render all pages
     } catch (e: unknown) {
+      setImportDialogMode("error");
+      setImportError(e instanceof Error ? e.message : "Failed to import database");
       toast.error(e instanceof Error ? e.message : "Failed to import database");
     }
   };
@@ -119,6 +176,18 @@ export default function App() {
     const file = e.target.files?.[0];
     if (file) handleDatabaseUpload(file);
     e.target.value = ""; // reset so same file can be re-selected
+  };
+
+  const onImportDialogOpenChange = (open: boolean) => {
+    setImportDialogOpen(open);
+    if (!open && importDialogMode !== "importing") {
+      setPendingImportFile(null);
+      setImportReport(null);
+      setImportJob(null);
+      setImportResult(null);
+      setImportError(null);
+      setImportDialogMode("review");
+    }
   };
 
   return (
@@ -207,6 +276,8 @@ export default function App() {
               {activePage === "plasmids" && <PlasmidsPage key={`p-${refreshKey}`} openId={pendingOpenId?.page === "plasmids" ? pendingOpenId.id : undefined} onOpenIdConsumed={() => setPendingOpenId(null)} />}
               {activePage === "features" && <FeaturesPage key={`f-${refreshKey}`} openId={pendingOpenId?.page === "features" ? pendingOpenId.id : undefined} onOpenIdConsumed={() => setPendingOpenId(null)} />}
               {activePage === "organisms" && <OrganismsPage key={`o-${refreshKey}`} openId={pendingOpenId?.page === "organisms" ? pendingOpenId.id : undefined} onOpenIdConsumed={() => setPendingOpenId(null)} />}
+              {activePage === "activity" && <ActivityPage key={`act-${refreshKey}`} onNavigate={handlePaletteSelect} />}
+              {activePage === "formblatt" && <FormblattPage key={`fb-${refreshKey}`} />}
               {activePage === "settings" && <SettingsPage key={`s-${refreshKey}`} accentPresetId={presetId} onAccentChange={setPresetId} />}
             </div>
           </main>
@@ -219,6 +290,17 @@ export default function App() {
           features={paletteData.features}
           organisms={paletteData.organisms}
           onSelect={handlePaletteSelect}
+        />
+
+        <DatabaseImportDialog
+          open={importDialogOpen}
+          mode={importDialogMode}
+          report={importReport}
+          job={importJob}
+          result={importResult}
+          error={importError}
+          onOpenChange={onImportDialogOpenChange}
+          onConfirm={confirmDatabaseImport}
         />
 
         <Toaster richColors position="bottom-right" />

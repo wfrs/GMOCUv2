@@ -109,13 +109,14 @@ def migrate_database_if_needed(db_path: str) -> MigrationResult:
         raise RuntimeError(f"Unsupported database format for {db_path}")
 
     backup_path = _backup_database_file(db_path)
-    conn = sqlite3.connect(db_path)
+    working_copy_path = _create_writable_working_copy(db_path)
+    conn = sqlite3.connect(working_copy_path)
     try:
         conn.execute("PRAGMA foreign_keys=OFF;")
         _rename_legacy_tables(conn)
         conn.commit()
 
-        engine = get_engine(db_path)
+        engine = get_engine(working_copy_path)
         Base.metadata.create_all(engine)
 
         _copy_legacy_data(conn, inspection.legacy_version)
@@ -123,9 +124,12 @@ def migrate_database_if_needed(db_path: str) -> MigrationResult:
         conn.commit()
     except Exception:
         conn.rollback()
+        Path(working_copy_path).unlink(missing_ok=True)
         raise
     finally:
         conn.close()
+
+    Path(working_copy_path).replace(db_path)
 
     return MigrationResult(
         migrated=True,
@@ -299,6 +303,8 @@ def _copy_plasmids(conn: sqlite3.Connection) -> None:
     for column, default in defaults.items():
         if column not in frame.columns:
             frame[column] = default
+
+    frame["organism_selector"] = frame["organism_selector"].replace({"": None})
 
     frame = frame.rename(
         columns={
@@ -490,3 +496,11 @@ def _backup_database_file(db_path: str) -> str:
     if not backup_path.exists():
         shutil.copy2(path, backup_path)
     return str(backup_path)
+
+
+def _create_writable_working_copy(db_path: str) -> str:
+    source = Path(db_path)
+    working_copy = source.with_suffix(source.suffix + ".migrating")
+    shutil.copyfile(source, working_copy)
+    working_copy.chmod(0o600)
+    return str(working_copy)

@@ -1,16 +1,18 @@
 """GMOCU 2.0 — FastAPI backend."""
-
-import shutil
 from contextlib import asynccontextmanager
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from .application.database_import import (
+    activate_uploaded_database,
+    create_import_job,
+    get_import_job,
+    inspect_uploaded_database,
+)
 from .bootstrap import prepare_runtime_database
 from .config import APP_NAME, VERSION, DATABASE_PATH
-from .routers import plasmids, features, organisms, settings, organism_selections, ice_credentials
+from .routers import plasmids, features, organisms, settings, organism_selections, ice_credentials, activity_logs, reports
 
 
 @asynccontextmanager
@@ -42,6 +44,8 @@ def create_app() -> FastAPI:
     app.include_router(settings.router, prefix="/api")
     app.include_router(organism_selections.router, prefix="/api")
     app.include_router(ice_credentials.router, prefix="/api")
+    app.include_router(activity_logs.router, prefix="/api")
+    app.include_router(reports.router, prefix="/api")
     return app
 
 
@@ -67,31 +71,45 @@ async def upload_database(file: UploadFile = File(...)):
         return {"error": "File must be a .db file"}
 
     contents = await file.read()
-    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(
-        dir=str(DATABASE_PATH.parent),
-        prefix="gmocu-upload-",
-        suffix=".db",
-        delete=False,
-    ) as handle:
-        temp_path = Path(handle.name)
-        handle.write(contents)
+    return activate_uploaded_database(
+        filename=file.filename,
+        contents=contents,
+        destination_path=str(DATABASE_PATH),
+    )
 
+
+@app.post("/api/database/inspect")
+async def inspect_database_upload(file: UploadFile = File(...)):
+    """Inspect an uploaded .db file before import."""
+    if not file.filename or not file.filename.endswith(".db"):
+        return {"error": "File must be a .db file"}
+
+    contents = await file.read()
+    return inspect_uploaded_database(
+        filename=file.filename,
+        contents=contents,
+        destination_path=str(DATABASE_PATH),
+    )
+
+
+@app.post("/api/database/import-jobs")
+async def create_database_import_job(file: UploadFile = File(...)):
+    """Create a live database import job for an uploaded .db file."""
+    if not file.filename or not file.filename.endswith(".db"):
+        return {"error": "File must be a .db file"}
+
+    contents = await file.read()
+    return create_import_job(
+        filename=file.filename,
+        contents=contents,
+        destination_path=str(DATABASE_PATH),
+    )
+
+
+@app.get("/api/database/import-jobs/{job_id}")
+def get_database_import_job(job_id: str):
+    """Return live status for a database import job."""
     try:
-        # Validate and migrate the upload before it becomes the active database.
-        prepare_runtime_database(str(temp_path))
-
-        # Backup current database if it exists.
-        if DATABASE_PATH.exists():
-            backup = DATABASE_PATH.with_suffix(".db.bak")
-            shutil.copy2(DATABASE_PATH, backup)
-
-        shutil.move(str(temp_path), DATABASE_PATH)
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
-
-    # Re-initialize runtime state against the activated database file.
-    prepare_runtime_database(str(DATABASE_PATH))
-
-    return {"status": "ok", "message": "Database replaced successfully"}
+        return get_import_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Import job not found") from exc

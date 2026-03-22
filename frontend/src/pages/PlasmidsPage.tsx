@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, Trash2, Search, Download, Upload, X, FileText,
   Paperclip, ChevronDown, Loader2, Copy, Download as DownloadIcon,
-  Maximize2, Minimize2, ArrowLeft,
+  Maximize2, Minimize2, ArrowLeft, CheckCircle2, ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -13,6 +13,7 @@ import { useSort } from "@/hooks/use-sort";
 import { SortableHead } from "@/components/sortable-head";
 import { Pagination } from "@/components/pagination";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { FormblattDialog } from "@/components/formblatt-dialog";
 import { PlasmidMap } from "@/components/plasmid-map";
 import { parseGenbank } from "@/lib/parse-genbank";
 import { exportCsv } from "@/lib/export-csv";
@@ -43,6 +44,7 @@ const STATUS_MAP: Record<number, { label: string; className: string }> = {
 };
 
 const PER_PAGE = 50;
+const todayString = () => new Date().toISOString().slice(0, 10);
 
 interface PlasmidsPageProps {
   openId?: number;
@@ -65,6 +67,11 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; onConfirm: () => void }>({ title: "", description: "", onConfirm: () => {} });
   const [expanded, setExpanded] = useState(false);
+  const [formblattOpen, setFormblattOpen] = useState(false);
+  const [newGmoOrganism, setNewGmoOrganism] = useState("");
+  const [newGmoTargetRiskGroup, setNewGmoTargetRiskGroup] = useState(1);
+  const [newGmoApproval, setNewGmoApproval] = useState("-");
+  const [newGmoCreatedOn, setNewGmoCreatedOn] = useState(todayString());
   const undoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gbFileRef = useRef<HTMLInputElement>(null);
   const attachFileRef = useRef<HTMLInputElement>(null);
@@ -87,6 +94,12 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
     return () => clearTimeout(t);
   }, [search]);
   useEffect(() => { setPage(1); }, [sortKey, sortDir]);
+  useEffect(() => {
+    setNewGmoOrganism("");
+    setNewGmoTargetRiskGroup(selected?.target_risk_group ?? 1);
+    setNewGmoApproval("-");
+    setNewGmoCreatedOn(todayString());
+  }, [selected?.id, selected?.target_risk_group]);
 
   // Auto-open from command palette
   useEffect(() => {
@@ -147,7 +160,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
   };
 
   // ── Update ──
-  const handleUpdate = async (field: string, value: string | number) => {
+  const handleUpdate = async (field: string, value: string | number | null) => {
     if (!selected) return;
     try {
       const updated = await plasmids.update(selected.id, { [field]: value });
@@ -237,10 +250,40 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
   };
 
   // ── GMOs ──
-  const handleAddGmo = async (name: string) => {
+  const handleAddGmo = async () => {
     if (!selected) return;
-    try { await plasmids.addGmo(selected.id, { organism_name: name, target_risk_group: selected.target_risk_group ?? 1 }); await refreshSelected(selected.id); toast.success(`Added ${name}`); }
+    if (!newGmoOrganism) return;
+    try {
+      await plasmids.addGmo(selected.id, {
+        organism_name: newGmoOrganism,
+        approval: newGmoApproval,
+        target_risk_group: newGmoTargetRiskGroup,
+        created_on: newGmoCreatedOn || null,
+      });
+      await refreshSelected(selected.id);
+      setNewGmoOrganism("");
+      setNewGmoCreatedOn(todayString());
+      toast.success(`Added ${newGmoOrganism}`);
+    }
     catch (e: unknown) { toast.error(e instanceof Error ? e.message : "Failed to add GMO"); }
+  };
+  const handleUpdateGmo = async (
+    id: number,
+    patch: {
+      organism_name?: string | null;
+      approval?: string | null;
+      target_risk_group?: number | null;
+      created_on?: string | null;
+      destroyed_on?: string | null;
+    },
+  ) => {
+    if (!selected) return;
+    try {
+      await plasmids.updateGmo(id, patch);
+      await refreshSelected(selected.id);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to update GMO");
+    }
   };
   const handleDeleteGmo = async (id: number) => {
     if (!selected) return;
@@ -320,6 +363,42 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
               </Button>
             </div>
 
+            {/* Workflow progress banner (expanded) */}
+            {(() => {
+              const cassetteDone = selected.cassettes.some(c => c.content && c.content !== "Empty");
+              const gmosDone = selected.gmos.length > 0;
+              return (
+                <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 shrink-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">GMO Registration Workflow</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cassetteDone ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                      {cassetteDone
+                        ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        : <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold">1</span>}
+                      Cassette
+                    </div>
+                    <span className="text-muted-foreground/40 text-xs">›</span>
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${gmosDone ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                      {gmosDone
+                        ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        : <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold">2</span>}
+                      GMOs{gmosDone ? ` (${selected.gmos.length})` : ""}
+                    </div>
+                    <span className="text-muted-foreground/40 text-xs">›</span>
+                    <Tooltip>
+                      <TooltipTrigger render={
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-dashed border-primary/30 text-xs font-medium text-primary/50 cursor-not-allowed select-none">
+                          <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                          Formblatt Z
+                        </div>
+                      } />
+                      <TooltipContent>Coming soon</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* 3-column grid */}
             <div className="flex-1 overflow-auto">
               <div className="grid grid-cols-3 gap-8 pb-2">
@@ -366,6 +445,39 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     <div className="space-y-1.5">
                       <Label htmlFor="ep-clone">Clone</Label>
                       <Input id="ep-clone" value={selected.clone || ""} onChange={(e) => setSelected({ ...selected, clone: e.target.value })} onBlur={(e) => handleUpdate("clone", e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Organism Selector</Label>
+                      <Select
+                        value={selected.target_organism_selection_id ? String(selected.target_organism_selection_id) : "none"}
+                        onValueChange={(v) => {
+                          const nextValue = v === "none" ? null : Number(v);
+                          setSelected({ ...selected, target_organism_selection_id: nextValue });
+                          handleUpdate("target_organism_selection_id", nextValue);
+                        }}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {targetOrganisms
+                            .filter((t) => t.organism_name)
+                            .map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>{t.organism_name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ep-recorded-on">Entry Date</Label>
+                      <Input
+                        id="ep-recorded-on"
+                        type="date"
+                        value={selected.recorded_on || ""}
+                        onChange={(e) => setSelected({ ...selected, recorded_on: e.target.value || null })}
+                        onBlur={(e) => handleUpdate("recorded_on", e.target.value || null)}
+                      />
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -436,30 +548,38 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     <div className="flex items-center justify-between mb-3">
                       <Label className="text-xs uppercase tracking-wider text-muted-foreground">GMOs</Label>
                     </div>
-                    <div className="flex gap-2 mb-3">
-                      <Select onValueChange={(v) => { if (v) handleAddGmo(v as string); }}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="Add organism…" /></SelectTrigger>
+                    <div className="grid grid-cols-[minmax(0,1.4fr)_96px_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 mb-3">
+                      <Select value={newGmoOrganism || undefined} onValueChange={(value) => setNewGmoOrganism(value ?? "")}>
+                        <SelectTrigger className="w-full"><SelectValue placeholder="Organism…" /></SelectTrigger>
                         <SelectContent>
-                          {targetOrganisms.map((t) => (
-                            <SelectItem key={t.id} value={t.organism_name || ""}>{t.organism_name}</SelectItem>
-                          ))}
+                          {targetOrganisms
+                            .filter((t) => t.organism_name)
+                            .map((t) => (
+                              <SelectItem key={t.id} value={t.organism_name || ""}>{t.organism_name}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
+                      <Input type="number" min={1} max={4} value={newGmoTargetRiskGroup} onChange={(e) => setNewGmoTargetRiskGroup(Number(e.target.value) || 1)} placeholder="RG" />
+                      <Input value={newGmoApproval} onChange={(e) => setNewGmoApproval(e.target.value)} placeholder="Approval" />
+                      <Input type="date" value={newGmoCreatedOn} onChange={(e) => setNewGmoCreatedOn(e.target.value)} />
+                      <Button variant="outline" size="sm" className="h-9" onClick={handleAddGmo}>Add</Button>
                     </div>
                     <div className="space-y-1.5">
                       {selected.gmos.map((g) => (
-                        <div key={g.id} className="flex items-center justify-between px-3 py-2 bg-muted rounded-md text-sm">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{g.organism_name}</span>
-                              <Badge variant="outline" className="text-[10px]">RG {g.target_risk_group ?? 1}</Badge>
-                              {g.destroyed_on && <Badge variant="destructive" className="text-[10px]">Destroyed</Badge>}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {g.created_on}{g.destroyed_on ? ` — ${g.destroyed_on}` : ""} | Approval: {g.approval || "-"}
-                            </div>
+                        <div key={g.id} className="px-3 py-3 bg-muted rounded-md text-sm">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-medium">{g.organism_name}</span>
+                            {g.destroyed_on && <Badge variant="destructive" className="text-[10px]">Destroyed</Badge>}
                           </div>
-                          <div className="flex items-center gap-0.5 ml-2">
+                          <div className="grid grid-cols-[minmax(0,1.2fr)_92px_minmax(0,1fr)_minmax(0,1fr)] gap-2 mb-2">
+                            <Input value={g.organism_name || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, organism_name: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { organism_name: e.target.value || null })} />
+                            <Input type="number" min={1} max={4} value={g.target_risk_group ?? 1} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, target_risk_group: Number(e.target.value) || 1 } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { target_risk_group: Number(e.target.value) || 1 })} />
+                            <Input value={g.approval || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, approval: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { approval: e.target.value || null })} />
+                            <Input type="date" value={g.created_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, created_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { created_on: e.target.value || null })} />
+                          </div>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center">
+                            <Input type="date" value={g.destroyed_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, destroyed_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { destroyed_on: e.target.value || null })} />
+                            <div className="flex items-center gap-0.5 ml-2">
                             {!g.destroyed_on && (
                               <Tooltip>
                                 <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => confirm("Mark GMO as destroyed?", `Set today as destruction date for ${g.organism_name}.`, () => handleDestroyGmo(g.id))} />}>
@@ -472,8 +592,12 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                               <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => confirm("Delete GMO?", `Remove ${g.organism_name} from this plasmid?`, () => handleDeleteGmo(g.id))} />}>
                                 <X className="h-3.5 w-3.5 text-muted-foreground" />
                               </TooltipTrigger>
-                              <TooltipContent>Delete GMO</TooltipContent>
-                            </Tooltip>
+                                <TooltipContent>Delete GMO</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-2 font-mono">
+                            {g.summary || "No GMO summary"}
                           </div>
                         </div>
                       ))}
@@ -638,7 +762,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
 
         {/* Detail Sheet */}
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetContent className="sm:max-w-lg overflow-y-auto">
+          <SheetContent className="w-[92vw] sm:max-w-2xl lg:max-w-4xl overflow-y-auto">
             {detailLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -662,6 +786,40 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     </Tooltip>
                   </SheetTitle>
                 </SheetHeader>
+
+                {/* Workflow progress banner */}
+                {(() => {
+                  const cassetteDone = selected.cassettes.some(c => c.content && c.content !== "Empty");
+                  const gmosDone = selected.gmos.length > 0;
+                  return (
+                    <div className="mx-4 mt-3 mb-0 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">GMO Registration Workflow</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cassetteDone ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                          {cassetteDone
+                            ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            : <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold">1</span>}
+                          Cassette
+                        </div>
+                        <span className="text-muted-foreground/40 text-xs">›</span>
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${gmosDone ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                          {gmosDone
+                            ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            : <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold">2</span>}
+                          GMOs{gmosDone ? ` (${selected.gmos.length})` : ""}
+                        </div>
+                        <span className="text-muted-foreground/40 text-xs">›</span>
+                        <button
+                          onClick={() => setFormblattOpen(true)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-primary/40 bg-primary/8 text-xs font-medium text-primary hover:bg-primary/15 transition-colors"
+                        >
+                          <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                          Formblatt Z
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-5 px-4 pb-4">
                   {/* Name / Alias */}
@@ -709,6 +867,39 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     <div className="space-y-1.5">
                       <Label htmlFor="p-clone">Clone</Label>
                       <Input id="p-clone" value={selected.clone || ""} onChange={(e) => setSelected({ ...selected, clone: e.target.value })} onBlur={(e) => handleUpdate("clone", e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Organism Selector</Label>
+                      <Select
+                        value={selected.target_organism_selection_id ? String(selected.target_organism_selection_id) : "none"}
+                        onValueChange={(v) => {
+                          const nextValue = v === "none" ? null : Number(v);
+                          setSelected({ ...selected, target_organism_selection_id: nextValue });
+                          handleUpdate("target_organism_selection_id", nextValue);
+                        }}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {targetOrganisms
+                            .filter((t) => t.organism_name)
+                            .map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>{t.organism_name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="p-recorded-on">Entry Date</Label>
+                      <Input
+                        id="p-recorded-on"
+                        type="date"
+                        value={selected.recorded_on || ""}
+                        onChange={(e) => setSelected({ ...selected, recorded_on: e.target.value || null })}
+                        onBlur={(e) => handleUpdate("recorded_on", e.target.value || null)}
+                      />
                     </div>
                   </div>
 
@@ -771,28 +962,39 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-xs uppercase tracking-wider text-muted-foreground">GMOs</Label>
                     </div>
-                    <div className="flex gap-2 mb-2">
-                      <Select onValueChange={(v) => { if (v) handleAddGmo(v as string); }}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="Add organism…" /></SelectTrigger>
+                    <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-[minmax(0,1.4fr)_92px_minmax(0,1fr)]">
+                      <Select value={newGmoOrganism || undefined} onValueChange={(value) => setNewGmoOrganism(value ?? "")}>
+                        <SelectTrigger className="w-full"><SelectValue placeholder="Organism…" /></SelectTrigger>
                         <SelectContent>
-                          {targetOrganisms.map((t) => (
-                            <SelectItem key={t.id} value={t.organism_name || ""}>{t.organism_name}</SelectItem>
-                          ))}
+                          {targetOrganisms
+                            .filter((t) => t.organism_name)
+                            .map((t) => (
+                              <SelectItem key={t.id} value={t.organism_name || ""}>{t.organism_name}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
+                      <Input type="number" min={1} max={4} value={newGmoTargetRiskGroup} onChange={(e) => setNewGmoTargetRiskGroup(Number(e.target.value) || 1)} placeholder="RG" />
+                      <Input value={newGmoApproval} onChange={(e) => setNewGmoApproval(e.target.value)} placeholder="Approval" />
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 mb-2">
+                      <Input type="date" value={newGmoCreatedOn} onChange={(e) => setNewGmoCreatedOn(e.target.value)} />
+                      <Button variant="outline" size="sm" className="h-9" onClick={handleAddGmo}>Add</Button>
                     </div>
                     <div className="space-y-1.5">
                       {selected.gmos.map((g) => (
-                        <div key={g.id} className="flex items-center justify-between px-3 py-2 bg-muted rounded-md text-sm">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{g.organism_name}</span>
-                              <Badge variant="outline" className="text-[10px]">RG {g.target_risk_group ?? 1}</Badge>
-                              {g.destroyed_on && <Badge variant="destructive" className="text-[10px]">Destroyed</Badge>}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {g.created_on}{g.destroyed_on ? ` — ${g.destroyed_on}` : ""} | Approval: {g.approval || "-"}
-                            </div>
+                        <div key={g.id} className="px-3 py-3 bg-muted rounded-md text-sm">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-medium">{g.organism_name}</span>
+                            {g.destroyed_on && <Badge variant="destructive" className="text-[10px]">Destroyed</Badge>}
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-[minmax(0,1.2fr)_92px_minmax(0,1fr)]">
+                            <Input value={g.organism_name || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, organism_name: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { organism_name: e.target.value || null })} />
+                            <Input type="number" min={1} max={4} value={g.target_risk_group ?? 1} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, target_risk_group: Number(e.target.value) || 1 } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { target_risk_group: Number(e.target.value) || 1 })} />
+                            <Input value={g.approval || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, approval: e.target.value } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { approval: e.target.value || null })} />
+                          </div>
+                          <div className="grid grid-cols-1 gap-2 mb-2 md:grid-cols-2">
+                            <Input type="date" value={g.created_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, created_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { created_on: e.target.value || null })} />
+                            <Input type="date" value={g.destroyed_on || ""} onChange={(e) => setSelected({ ...selected, gmos: selected.gmos.map((item) => item.id === g.id ? { ...item, destroyed_on: e.target.value || null } : item) })} onBlur={(e) => handleUpdateGmo(g.id, { destroyed_on: e.target.value || null })} />
                           </div>
                           <div className="flex items-center gap-0.5 ml-2">
                             {!g.destroyed_on && (
@@ -807,8 +1009,11 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
                               <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => confirm("Delete GMO?", `Remove ${g.organism_name} from this plasmid?`, () => handleDeleteGmo(g.id))} />}>
                                 <X className="h-3.5 w-3.5 text-muted-foreground" />
                               </TooltipTrigger>
-                              <TooltipContent>Delete GMO</TooltipContent>
-                            </Tooltip>
+                                <TooltipContent>Delete GMO</TooltipContent>
+                              </Tooltip>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-2 font-mono break-words">
+                            {g.summary || "No GMO summary"}
                           </div>
                         </div>
                       ))}
@@ -914,6 +1119,7 @@ export default function PlasmidsPage({ openId, onOpenIdConsumed }: PlasmidsPageP
 
         <ConfirmDialog open={confirmOpen} onOpenChange={setConfirmOpen} title={confirmAction.title} description={confirmAction.description} onConfirm={confirmAction.onConfirm} />
         <ConfirmDialog open={bulkConfirmOpen} onOpenChange={setBulkConfirmOpen} title={`Delete ${selectedIds.size} plasmids?`} description="This will permanently delete all selected plasmids and their associated data." onConfirm={handleBulkDelete} />
+        <FormblattDialog open={formblattOpen} onOpenChange={setFormblattOpen} />
       </div>
     </TooltipProvider>
   );

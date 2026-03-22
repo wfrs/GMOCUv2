@@ -13,82 +13,69 @@ def _parse_cassette_features(content: str) -> list[str]:
 
 def generate_formblatt(db_path: str, lang: str = "de") -> pd.DataFrame:
     """Generate Formblatt-Z data as a DataFrame."""
-    columns = [
-        "Nr.", "Spender Bezeichnung", "Spender RG",
-        "Empfänger Bezeichnung", "Empfänger RG",
-        "Ausgangsvektor Bezeichnung",
-        "Übertragene Nukleinsäure Bezeichnung",
-        "Übertragene Nukleinsäure Gefährdungspotential",
-        "GVO Bezeichnung", "GVO RG", "GVO Zulassung",
-        "GVO erzeugt/erhalten am", "GVO entsorgt am",
-        "Datum des Eintrags",
-    ]
-    formblatt = pd.DataFrame(columns=columns)
+    rows: list[dict] = []
 
     conn = sqlite3.connect(db_path)
     try:
         gmo_data = pd.read_sql_query("SELECT * FROM gmos", conn)
+        cursor = conn.cursor()
 
-        for idx, gmo in gmo_data.iterrows():
+        for _, gmo in gmo_data.iterrows():
             plasmid_id = gmo["plasmid_id"]
-            cassettes = pd.read_sql_query(
-                "SELECT content FROM cassettes WHERE plasmid_id = ?",
-                conn,
-                params=(plasmid_id,),
-            )
-
-            used_features = cassettes["content"].tolist()
-            used_features = [re.sub(r"\[.*?\]", "", feature) for feature in used_features]
-            used_features = "-".join(used_features).split("-")
-
-            cursor = conn.cursor()
-            feature_organisms = []
-            feature_risk = []
-            for feature in used_features:
-                cursor.execute(
-                    "SELECT organism FROM features WHERE annotation = ?",
-                    (feature,),
-                )
-                feature_organisms.append(cursor.fetchone()[0])
-                cursor.execute(
-                    "SELECT risk FROM features WHERE annotation = ?",
-                    (feature,),
-                )
-                risk = cursor.fetchone()[0]
-                feature_risk.append(risk if risk else "None")
-
-            source_rg = []
-            for organism in feature_organisms:
-                cursor.execute(
-                    "SELECT risk_group FROM organisms WHERE short_name = ?",
-                    (organism,),
-                )
-                source_rg.append(cursor.fetchone()[0])
-
-            cursor.execute(
-                "SELECT risk_group FROM organisms WHERE short_name = ?",
-                (gmo["organism_name"],),
-            )
-            recipient_rg = cursor.fetchone()[0]
-
-            cursor.execute(
-                "SELECT full_name FROM organisms WHERE short_name = ?",
-                (gmo["organism_name"],),
-            )
-            recipient_full = cursor.fetchone()[0]
 
             plasmid_frame = pd.read_sql_query(
                 "SELECT name, backbone_vector FROM plasmids WHERE id = ?",
                 conn,
                 params=(plasmid_id,),
             )
-            plasmid_name = plasmid_frame["name"][0]
-            original_plasmid = plasmid_frame["backbone_vector"][0]
+            if plasmid_frame.empty:
+                continue
+            plasmid_name = plasmid_frame["name"].iloc[0]
+            original_plasmid = plasmid_frame["backbone_vector"].iloc[0]
 
-            row = {
-                "Nr.": str(idx + 1),
+            # Parse cassette features — skip "Empty" placeholders, filter blank tokens
+            cassettes = pd.read_sql_query(
+                "SELECT content FROM cassettes WHERE plasmid_id = ?",
+                conn,
+                params=(plasmid_id,),
+            )
+            raw_contents = [
+                c for c in cassettes["content"].tolist()
+                if c and c.strip().lower() != "empty"
+            ]
+            stripped = [re.sub(r"\[.*?\]", "", c) for c in raw_contents]
+            used_features = [f for f in "-".join(stripped).split("-") if f.strip()]
+
+            feature_organisms = []
+            feature_risk = []
+            for feature in used_features:
+                cursor.execute("SELECT organism FROM features WHERE annotation = ?", (feature,))
+                row_f = cursor.fetchone()
+                feature_organisms.append(row_f[0] if row_f else "?")
+
+                cursor.execute("SELECT risk FROM features WHERE annotation = ?", (feature,))
+                row_r = cursor.fetchone()
+                risk = row_r[0] if row_r else None
+                feature_risk.append(risk if risk else "None")
+
+            source_rg = []
+            for organism in feature_organisms:
+                cursor.execute("SELECT risk_group FROM organisms WHERE short_name = ?", (organism,))
+                row_rg = cursor.fetchone()
+                source_rg.append(row_rg[0] if row_rg else "?")
+
+            cursor.execute("SELECT risk_group FROM organisms WHERE short_name = ?", (gmo["organism_name"],))
+            row_rrg = cursor.fetchone()
+            recipient_rg = row_rrg[0] if row_rrg else "?"
+
+            cursor.execute("SELECT full_name FROM organisms WHERE short_name = ?", (gmo["organism_name"],))
+            row_rf = cursor.fetchone()
+            recipient_full = row_rf[0] if row_rf else gmo["organism_name"]
+
+            rows.append({
+                "Nr.": str(len(rows) + 1),
                 "Spender Bezeichnung": "|".join(feature_organisms),
-                "Spender RG": "|".join(source_rg),
+                "Spender RG": "|".join(str(r) if r is not None else "?" for r in source_rg),
                 "Empfänger Bezeichnung": recipient_full,
                 "Empfänger RG": recipient_rg,
                 "Ausgangsvektor Bezeichnung": original_plasmid,
@@ -100,13 +87,27 @@ def generate_formblatt(db_path: str, lang: str = "de") -> pd.DataFrame:
                 "GVO erzeugt/erhalten am": gmo["created_on"],
                 "GVO entsorgt am": gmo["destroyed_on"],
                 "Datum des Eintrags": gmo["created_on"],
-            }
-            formblatt = pd.concat(
-                [formblatt, pd.DataFrame.from_records([row])],
-                ignore_index=True,
-            )
+            })
+
+        cursor.close()
     finally:
         conn.close()
+
+    formblatt = pd.DataFrame(rows)
+    if formblatt.empty:
+        # Return empty DataFrame with correct columns
+        cols = (
+            ["No", "Donor designation", "Donor RG", "Recipient designation", "Recipient RG",
+             "Source vector designation", "Transferred nucleic acid designation",
+             "Transferred nucleic acid risk potential", "GMO name", "GMO RG", "GMO approval",
+             "GMO generated", "GMO disposal", "Entry date"]
+            if lang == "en" else
+            ["Nr.", "Spender Bezeichnung", "Spender RG", "Empfänger Bezeichnung", "Empfänger RG",
+             "Ausgangsvektor Bezeichnung", "Übertragene Nukleinsäure Bezeichnung",
+             "Übertragene Nukleinsäure Gefährdungspotential", "GVO Bezeichnung", "GVO RG",
+             "GVO Zulassung", "GVO erzeugt/erhalten am", "GVO entsorgt am", "Datum des Eintrags"]
+        )
+        return pd.DataFrame(columns=cols)
 
     if lang == "en":
         formblatt.columns = [
@@ -117,17 +118,6 @@ def generate_formblatt(db_path: str, lang: str = "de") -> pd.DataFrame:
             "Transferred nucleic acid risk potential",
             "GMO name", "GMO RG", "GMO approval",
             "GMO generated", "GMO disposal", "Entry date",
-        ]
-    else:
-        formblatt.columns = [
-            "Nr.", "Spender Bezeichnung", "Spender RG",
-            "Empfänger Bezeichnung", "Empfänger RG",
-            "Ausgangsvektor Bezeichnung",
-            "Übertragene Nukleinsäure Bezeichnung",
-            "Übertragene Nukleinsäure Gefährdungspotential",
-            "GVO Bezeichnung", "GVO RG", "GVO Zulassung",
-            "GVO erzeugt/erhalten am", "GVO entsorgt am",
-            "Datum des Eintrags",
         ]
 
     return formblatt

@@ -50,7 +50,8 @@ env PYTHONPYCACHEPREFIX=/tmp/pycache ../.venv/bin/pytest -q
 
 ## Database Behavior
 
-- The backend uses `~/GMOCU/gmocu.db` by default.
+- The backend uses `~/GMOCU/gmocu-v2.db` by default.
+- The legacy app keeps using `~/GMOCU/gmocu.db`, so the v2 backend no longer shares the same default filename.
 - Set `GMOCU_DATABASE` to point to a different database file.
 - Legacy GMOCU databases are migrated into the current schema automatically.
 - Database upload through the API validates and migrates the file before activation.

@@ -2,6 +2,7 @@
 
 import shutil
 import sqlite3
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -34,6 +35,25 @@ def test_health_and_settings_endpoints_seed_database(monkeypatch, tmp_path):
         settings_body = settings.json()
         assert settings_body["name"] == "Name"
         assert settings_body["autosync"] == 0
+
+
+def test_database_inspect_endpoint_reports_import_plan(monkeypatch, tmp_path):
+    with _make_client(monkeypatch, tmp_path) as client:
+        with LEGACY_DB_04.open("rb") as db_file:
+            inspected = client.post(
+                "/api/database/inspect",
+                files={"file": ("gmocu.db", db_file, "application/octet-stream")},
+            )
+
+        assert inspected.status_code == 200
+        body = inspected.json()
+        assert body["filename"] == "gmocu.db"
+        assert body["inspection"]["kind"] == "legacy"
+        assert body["inspection"]["legacy_version"] == "pre-0.5"
+        assert body["inspection"]["target_schema_version"] == CURRENT_SCHEMA_VERSION
+        assert body["counts"]["plasmids"] > 0
+        assert body["counts"]["features"] > 0
+        assert any(step["id"] == "migrate" for step in body["planned_steps"])
 
 
 def test_startup_migrates_legacy_database(monkeypatch, tmp_path):
@@ -202,6 +222,13 @@ def test_feature_crud_api(monkeypatch, tmp_path):
 
 def test_plasmid_nested_workflow_api(monkeypatch, tmp_path):
     with _make_client(monkeypatch, tmp_path) as client:
+        selection_resp = client.post(
+            "/api/organism-selections/",
+            json={"organism_name": "AgTu"},
+        )
+        assert selection_resp.status_code == 201
+        selection_id = selection_resp.json()["id"]
+
         plasmid_resp = client.post("/api/plasmids/", json={"name": "pAPI001"})
         assert plasmid_resp.status_code == 201
         plasmid = plasmid_resp.json()
@@ -211,11 +238,19 @@ def test_plasmid_nested_workflow_api(monkeypatch, tmp_path):
 
         updated = client.patch(
             f"/api/plasmids/{plasmid_id}",
-            json={"alias": "api-alias", "target_risk_group": 2, "backbone_vector": "pBBR1"},
+            json={
+                "alias": "api-alias",
+                "target_risk_group": 2,
+                "backbone_vector": "pBBR1",
+                "target_organism_selection_id": selection_id,
+                "recorded_on": "2024-02-12",
+            },
         )
         assert updated.status_code == 200
         assert updated.json()["alias"] == "api-alias"
         assert updated.json()["target_risk_group"] == 2
+        assert updated.json()["target_organism_selection_id"] == selection_id
+        assert updated.json()["recorded_on"] == "2024-02-12"
 
         cassette_resp = client.post(f"/api/plasmids/{plasmid_id}/cassettes")
         assert cassette_resp.status_code == 201
@@ -230,11 +265,32 @@ def test_plasmid_nested_workflow_api(monkeypatch, tmp_path):
 
         gmo_resp = client.post(
             f"/api/plasmids/{plasmid_id}/gmos",
-            json={"organism_name": "E. coli", "approval": "S1", "target_risk_group": 1},
+            json={
+                "organism_name": "E. coli",
+                "approval": "S1",
+                "target_risk_group": 1,
+                "created_on": "2024-01-23",
+            },
         )
         assert gmo_resp.status_code == 201
         gmo = gmo_resp.json()
         assert gmo["organism_name"] == "E. coli"
+        assert gmo["created_on"] == "2024-01-23"
+
+        gmo_updated = client.patch(
+            f"/api/plasmids/gmos/{gmo['id']}",
+            json={
+                "approval": "S2",
+                "target_risk_group": 2,
+                "created_on": "2024-02-01",
+                "destroyed_on": "2024-02-05",
+            },
+        )
+        assert gmo_updated.status_code == 200
+        assert gmo_updated.json()["approval"] == "S2"
+        assert gmo_updated.json()["target_risk_group"] == 2
+        assert gmo_updated.json()["created_on"] == "2024-02-01"
+        assert gmo_updated.json()["destroyed_on"] == "2024-02-05"
 
         gmo_destroyed = client.patch(f"/api/plasmids/gmos/{gmo['id']}/destroy")
         assert gmo_destroyed.status_code == 200
@@ -288,6 +344,10 @@ def test_database_upload_endpoint_replaces_database(monkeypatch, tmp_path):
             )
         assert uploaded.status_code == 200
         assert uploaded.json()["status"] == "ok"
+        assert uploaded.json()["import_report"]["inspection"]["kind"] == "legacy"
+        assert uploaded.json()["activated_report"]["inspection"]["kind"] == "current"
+        assert uploaded.json()["activated_report"]["inspection"]["schema_version"] == CURRENT_SCHEMA_VERSION
+        assert len(uploaded.json()["completed_steps"]) >= 4
 
         after_upload = client.get("/api/plasmids/")
         assert after_upload.status_code == 200
@@ -306,3 +366,34 @@ def test_database_upload_endpoint_replaces_database(monkeypatch, tmp_path):
             assert metadata == (CURRENT_SCHEMA_VERSION, "legacy:pre-0.5")
         finally:
             conn.close()
+
+
+def test_database_import_job_endpoint_reports_live_progress(monkeypatch, tmp_path):
+    with _make_client(monkeypatch, tmp_path) as client:
+        with LEGACY_DB_04.open("rb") as db_file:
+            created = client.post(
+                "/api/database/import-jobs",
+                files={"file": ("gmocu.db", db_file, "application/octet-stream")},
+            )
+
+        assert created.status_code == 200
+        body = created.json()
+        assert body["job_id"]
+        assert body["report"]["inspection"]["kind"] == "legacy"
+        assert any(step["status"] in {"pending", "running", "completed"} for step in body["steps"])
+
+        deadline = time.time() + 10
+        current = body
+        while current["status"] in {"queued", "running"} and time.time() < deadline:
+            time.sleep(0.1)
+            current = client.get(f"/api/database/import-jobs/{body['job_id']}").json()
+
+        assert current["status"] == "completed"
+        assert current["result"]["status"] == "ok"
+        assert current["result"]["activated_report"]["inspection"]["kind"] == "current"
+        assert current["result"]["activated_report"]["inspection"]["schema_version"] == CURRENT_SCHEMA_VERSION
+        assert all(step["status"] == "completed" for step in current["steps"])
+
+        after_import = client.get("/api/plasmids/")
+        assert after_import.status_code == 200
+        assert len(after_import.json()) > 0

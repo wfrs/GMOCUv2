@@ -40,9 +40,11 @@ class PlasmidListOut(BaseModel):
     clone: str | None = None
     backbone_vector: str | None = None
     marker: str | None = None
+    target_organism_selection_id: int | None = None
     target_risk_group: int | None = None
     created_on: str | None = None
     destroyed_on: str | None = None
+    recorded_on: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -59,6 +61,7 @@ class PlasmidOut(BaseModel):
     clone: str | None = None
     backbone_vector: str | None = None
     marker: str | None = None
+    target_organism_selection_id: int | None = None
     target_risk_group: int | None = None
     created_on: str | None = None
     destroyed_on: str | None = None
@@ -81,7 +84,9 @@ class PlasmidCreate(BaseModel):
     clone: str | None = None
     backbone_vector: str | None = None
     marker: str | None = None
+    target_organism_selection_id: int | None = None
     target_risk_group: int = 1
+    recorded_on: str | None = None
 
 
 class PlasmidUpdate(BaseModel):
@@ -95,9 +100,11 @@ class PlasmidUpdate(BaseModel):
     clone: str | None = None
     backbone_vector: str | None = None
     marker: str | None = None
+    target_organism_selection_id: int | None = None
     target_risk_group: int | None = None
     created_on: str | None = None
     destroyed_on: str | None = None
+    recorded_on: str | None = None
 
 
 class CassetteUpdate(BaseModel):
@@ -108,6 +115,16 @@ class GMOCreate(BaseModel):
     organism_name: str
     approval: str = "-"
     target_risk_group: int = 1
+    created_on: str | None = None
+    destroyed_on: str | None = None
+
+
+class GMOUpdate(BaseModel):
+    organism_name: str | None = None
+    approval: str | None = None
+    target_risk_group: int | None = None
+    created_on: str | None = None
+    destroyed_on: str | None = None
 
 
 class GenBankUpload(BaseModel):
@@ -237,6 +254,22 @@ class OrganismFavouriteOut(BaseModel):
 
 class OrganismFavouriteCreate(BaseModel):
     organism_name: str
+
+
+# --- Activity log ---
+
+class ActivityLogOut(BaseModel):
+    id: int
+    action: str
+    entity_type: str
+    entity_id: int
+    entity_name: str | None = None
+    field: str | None = None
+    old_value: str | None = None
+    new_value: str | None = None
+    timestamp: str | None = None
+
+    model_config = {"from_attributes": True}
 
 
 # --- ICE credentials ---

@@ -4,10 +4,12 @@ These functions make database initialization explicit and idempotent so the
 runtime can open a fresh database file and still expose a usable API.
 """
 
+import shutil
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from .config import DEFAULT_DATABASE_PATH, LEGACY_DATABASE_PATH
 from .models import (
     AppSettings,
     Base,
@@ -18,7 +20,7 @@ from .models import (
     get_session,
     init_engine,
 )
-from .migrations import CURRENT_SCHEMA_VERSION, migrate_database_if_needed
+from .migrations import CURRENT_SCHEMA_VERSION, inspect_database, migrate_database_if_needed
 
 DEFAULT_SELECTION_VALUES = {
     1: "Complete",
@@ -80,8 +82,31 @@ def ensure_database_ready(db_path: str) -> None:
 
 def prepare_runtime_database(db_path: str) -> None:
     """Initialize the database file and runtime SQLAlchemy engine."""
+    _adopt_existing_v2_database(db_path)
     ensure_database_ready(db_path)
     init_engine(db_path)
+
+
+def _adopt_existing_v2_database(db_path: str) -> None:
+    """Copy a previously migrated v2 DB away from the legacy default path.
+
+    This avoids collisions with the old app while preserving an already-upgraded
+    runtime DB for the new app.
+    """
+    target = Path(db_path)
+    if target.exists() or target != DEFAULT_DATABASE_PATH:
+        return
+
+    legacy_path = LEGACY_DATABASE_PATH
+    if not legacy_path.exists() or legacy_path == target:
+        return
+
+    inspection = inspect_database(str(legacy_path))
+    if inspection.kind != "current":
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(legacy_path, target)
 
 
 def _ensure_seed_data(session: Session) -> None:

@@ -218,6 +218,20 @@ class IceCredentials(Base):
     filebrowser_pwd = synonym("file_browser_password")
 
 
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    action      = Column(Text)     # "create" | "update" | "delete"
+    entity_type = Column(Text)     # "plasmid" | "feature" | "organism"
+    entity_id   = Column(Integer)
+    entity_name = Column(Text)     # display name snapshot (survives deletion)
+    field       = Column(Text)     # for "update": which field changed
+    old_value   = Column(Text)     # previous value
+    new_value   = Column(Text)     # new value
+    timestamp   = Column(Text, default=text("datetime('now')"))
+
+
 class SchemaMeta(Base):
     __tablename__ = "schema_meta"
 

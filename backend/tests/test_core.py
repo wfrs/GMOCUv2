@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import pandas as pd
 
-from app.bootstrap import ensure_database_ready
+from app.bootstrap import ensure_database_ready, prepare_runtime_database
 from app.application import features as feature_service
 from app.application import ice_credentials as credentials_service
 from app.application import imports as import_service
@@ -28,6 +28,7 @@ from app.schemas import (
     FeatureCreate,
     FeatureUpdate,
     GMOCreate,
+    GMOUpdate,
     IceCredentialsCreate,
     IceCredentialsUpdate,
     OrganismFavouriteCreate,
@@ -133,6 +134,22 @@ class TestDatabase:
         assert session.query(IceCredentials).count() == 1
         session.close()
 
+    def test_runtime_uses_separate_v2_default_name(self, tmp_path, monkeypatch):
+        legacy_path = tmp_path / "gmocu.db"
+        v2_path = tmp_path / "gmocu-v2.db"
+        shutil.copy(EXAMPLE_DB, legacy_path)
+        ensure_database_ready(str(legacy_path))
+
+        import app.bootstrap as bootstrap_module
+
+        monkeypatch.setattr(bootstrap_module, "LEGACY_DATABASE_PATH", legacy_path)
+        monkeypatch.setattr(bootstrap_module, "DEFAULT_DATABASE_PATH", v2_path)
+
+        prepare_runtime_database(str(v2_path))
+
+        assert v2_path.exists()
+        assert inspect_database(str(v2_path)).kind == "current"
+
     def test_inspect_active_backup_version(self):
         inspection = inspect_database(str(ACTIVE_BACKUP_DB))
         assert inspection.kind == "legacy"
@@ -202,6 +219,37 @@ class TestDatabase:
             assert gmo_generated_type == ("TEXT",)
             assert gmo_destroyed_type == ("TEXT",)
             assert gmo_entry_type == ("TEXT",)
+        finally:
+            conn.close()
+
+    def test_migrate_readonly_legacy_database(self, tmp_path):
+        migrated_db = tmp_path / "legacy-readonly.db"
+        shutil.copy(ACTIVE_BACKUP_DB, migrated_db)
+        migrated_db.chmod(0o444)
+
+        result = migrate_database_if_needed(str(migrated_db))
+        assert result.migrated is True
+        assert result.inspection.kind == "current"
+        assert result.inspection.schema_version == CURRENT_SCHEMA_VERSION
+        assert Path(result.backup_path).exists()
+
+        conn = sqlite3.connect(migrated_db)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table';"
+                )
+            }
+            assert "app_settings" in tables
+            assert "organism_selections" in tables
+
+            organism_columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info('organisms');").fetchall()
+            }
+            assert "risk_group" in organism_columns
+            assert "RG" not in organism_columns
         finally:
             conn.close()
 
@@ -329,6 +377,50 @@ class TestPlasmidApplication:
             assert duplicated.id != created.id
             assert duplicated.name == "pTEST001 (copy)"
             assert len(duplicated.cassettes) == 1
+        finally:
+            session.close()
+
+    def test_update_plasmid_dates_and_gmo_fields(self, fresh_db):
+        session = get_session(fresh_db)
+        try:
+            selection = organism_list_service.create_selection(session, "AgTu")
+            created = plasmid_service.create_plasmid(session, PlasmidCreate(name="pTEST002"))
+            updated = plasmid_service.update_plasmid(
+                session,
+                created.id,
+                PlasmidUpdate(
+                    recorded_on="2024-02-12",
+                    target_organism_selection_id=selection.id,
+                ),
+            )
+            assert updated.recorded_on == "2024-02-12"
+            assert updated.target_organism_selection_id == selection.id
+
+            gmo = plasmid_service.add_gmo(
+                session,
+                created.id,
+                GMOCreate(
+                    organism_name="E. coli",
+                    approval="S1",
+                    target_risk_group=1,
+                    created_on="2024-01-23",
+                ),
+            )
+            assert gmo.created_on == "2024-01-23"
+
+            gmo = plasmid_service.update_gmo(
+                session,
+                gmo.id,
+                GMOUpdate(
+                    approval="S2",
+                    target_risk_group=2,
+                    destroyed_on="2024-02-05",
+                ),
+            )
+            assert gmo.approval == "S2"
+            assert gmo.target_risk_group == 2
+            assert gmo.destroyed_on == "2024-02-05"
+            assert "2024-02-05" in (gmo.summary or "")
         finally:
             session.close()
 

@@ -71,22 +71,25 @@ def check_features(db_path: str) -> dict:
             features = cassette_str.split("-")
             total_used += features
             diff = np.setdiff1d(features, annotation_list)
-            plasmid_name = pd.read_sql_query(
+            plasmid_row = pd.read_sql_query(
                 "SELECT name FROM plasmids WHERE id = ?",
                 conn,
                 params=(plasmid_ids[index],),
-            )["name"][0]
+            )
+            if plasmid_row.empty:
+                continue
+            plasmid_name = plasmid_row["name"].iloc[0]
             for element in diff:
                 missing.append(f"{plasmid_name}: {element}")
 
-        redundant = list(np.setdiff1d(annotation_list, total_used))
+        redundant = [str(x) for x in np.setdiff1d(annotation_list, total_used)]
 
         return {
             "complete": len(missing) == 0,
             "missing": missing,
             "redundant": redundant,
             "duplicates": duplicates,
-            "has_empty_fields": has_empty,
+            "has_empty_fields": bool(has_empty),
         }
     finally:
         conn.close()
@@ -112,7 +115,7 @@ def check_organisms(db_path: str) -> dict:
             if row["organism"] in missing_orgs:
                 missing_pairs.append(f"{row['annotation']}: {row['organism']}")
 
-        redundant = list(np.setdiff1d(glossary_list, used))
+        redundant = [str(x) for x in np.setdiff1d(glossary_list, used)]
 
         return {
             "complete": len(missing_orgs) == 0,

@@ -14,6 +14,7 @@ from ..schemas import (
     CassetteUpdate,
     GMOCreate,
     GMOOut,
+    GMOUpdate,
     GenBankUpload,
     PlasmidCreate,
     PlasmidListOut,
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/plasmids", tags=["plasmids"])
 def list_plasmids(
     search: Optional[str] = Query(None),
     skip: int = 0,
-    limit: int = 1000,
+    limit: int = 100000,
     db: Session = Depends(get_db),
 ):
     return plasmid_service.list_plasmids(db, search=search, skip=skip, limit=limit)
@@ -87,6 +88,11 @@ def list_gmos(plasmid_id: int, db: Session = Depends(get_db)):
 @router.post("/{plasmid_id}/gmos", response_model=GMOOut, status_code=201)
 def add_gmo(plasmid_id: int, data: GMOCreate, db: Session = Depends(get_db)):
     return plasmid_service.add_gmo(db, plasmid_id, data)
+
+
+@router.patch("/gmos/{gmo_id}", response_model=GMOOut)
+def update_gmo(gmo_id: int, data: GMOUpdate, db: Session = Depends(get_db)):
+    return plasmid_service.update_gmo(db, gmo_id, data)
 
 
 @router.delete("/gmos/{gmo_id}", status_code=204)

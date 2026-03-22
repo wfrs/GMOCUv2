@@ -23,9 +23,11 @@ export interface PlasmidListItem {
   clone: string | null;
   backbone_vector: string | null;
   marker: string | null;
+  target_organism_selection_id: number | null;
   target_risk_group: number | null;
   created_on: string | null;
   destroyed_on: string | null;
+  recorded_on: string | null;
 }
 
 export interface Plasmid extends PlasmidListItem {
@@ -133,8 +135,27 @@ export const plasmids = {
   updateCassette: (cassetteId: number, content: string) => request<Cassette>(`/plasmids/cassettes/${cassetteId}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
   deleteCassette: (cassetteId: number) => request<void>(`/plasmids/cassettes/${cassetteId}`, { method: 'DELETE' }),
   // GMOs
-  addGmo: (plasmidId: number, data: { organism_name: string; approval?: string; target_risk_group?: number }) =>
+  addGmo: (
+    plasmidId: number,
+    data: {
+      organism_name: string;
+      approval?: string;
+      target_risk_group?: number;
+      created_on?: string | null;
+      destroyed_on?: string | null;
+    },
+  ) =>
     request<GMO>(`/plasmids/${plasmidId}/gmos`, { method: 'POST', body: JSON.stringify(data) }),
+  updateGmo: (
+    gmoId: number,
+    data: {
+      organism_name?: string | null;
+      approval?: string | null;
+      target_risk_group?: number | null;
+      created_on?: string | null;
+      destroyed_on?: string | null;
+    },
+  ) => request<GMO>(`/plasmids/gmos/${gmoId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteGmo: (gmoId: number) => request<void>(`/plasmids/gmos/${gmoId}`, { method: 'DELETE' }),
   destroyGmo: (gmoId: number) => request<GMO>(`/plasmids/gmos/${gmoId}/destroy`, { method: 'PATCH' }),
   // GenBank
@@ -192,14 +213,162 @@ export const iceCredentials = {
   delete: (id: number) => request<void>(`/ice-credentials/${id}`, { method: 'DELETE' }),
 };
 
+export interface ActivityLog {
+  id: number;
+  action: string;       // "create" | "update" | "delete"
+  entity_type: string;  // "plasmid" | "feature" | "organism"
+  entity_id: number;
+  entity_name: string | null;
+  field: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  timestamp: string | null;
+}
+
+export const activityLog = {
+  list: (entity_type?: string) =>
+    request<ActivityLog[]>(`/activity/${entity_type ? `?entity_type=${encodeURIComponent(entity_type)}` : ''}`),
+};
+
 export interface HealthResponse {
   status: string;
   version: string;
   database: string;
 }
 
+export interface DatabaseImportStep {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+export interface DatabaseImportReport {
+  filename: string;
+  file_size_bytes: number | null;
+  destination_path: string;
+  inspection: {
+    kind: string;
+    legacy_version: string | null;
+    schema_version: number | null;
+    target_schema_version: number;
+  };
+  counts: {
+    plasmids: number;
+    features: number;
+    organisms: number;
+    gmos: number;
+    cassettes: number;
+    attachments: number;
+    organism_selections: number;
+    organism_favourites: number;
+  };
+  planned_steps: DatabaseImportStep[];
+}
+
+export interface DatabaseImportResult {
+  status: string;
+  message: string;
+  backup_path: string | null;
+  import_report: DatabaseImportReport;
+  activated_report: DatabaseImportReport;
+  completed_steps: string[];
+}
+
+export interface DatabaseImportJobStep extends DatabaseImportStep {
+  status: "pending" | "running" | "completed" | "failed";
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface DatabaseImportJob {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  error: string | null;
+  report: DatabaseImportReport;
+  result: DatabaseImportResult | null;
+  active_step_id: string | null;
+  steps: DatabaseImportJobStep[];
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface FormblattValidation {
+  ready: boolean;
+  issues: string[];
+  gmo_count: number;
+}
+
+export interface HealthReport {
+  features: {
+    complete: boolean;
+    missing: string[];
+    redundant: string[];
+    duplicates: string[];
+    has_empty_fields: boolean;
+  };
+  organisms: {
+    complete: boolean;
+    missing_pairs: string[];
+    redundant: string[];
+    duplicates: string[];
+  };
+  plasmids: {
+    duplicates: string[];
+    no_backbone: string[];
+    no_cassettes: string[];
+    no_gmos: string[];
+  };
+}
+
+export type FormblattLang = 'de' | 'en';
+
+export interface FormblattRow {
+  // German keys (lang=de) — values differ by lang but keys always match the chosen lang
+  [key: string]: string | number | null;
+}
+
+export const FORMBLATT_COLUMNS_DE = [
+  'Nr.', 'Spender Bezeichnung', 'Spender RG',
+  'Empfänger Bezeichnung', 'Empfänger RG',
+  'Ausgangsvektor Bezeichnung',
+  'Übertragene Nukleinsäure Bezeichnung',
+  'Übertragene Nukleinsäure Gefährdungspotential',
+  'GVO Bezeichnung', 'GVO RG', 'GVO Zulassung',
+  'GVO erzeugt/erhalten am', 'GVO entsorgt am',
+  'Datum des Eintrags',
+] as const;
+
+export const FORMBLATT_COLUMNS_EN = [
+  'No', 'Donor designation', 'Donor RG',
+  'Recipient designation', 'Recipient RG',
+  'Source vector designation',
+  'Transferred nucleic acid designation',
+  'Transferred nucleic acid risk potential',
+  'GMO name', 'GMO RG', 'GMO approval',
+  'GMO generated', 'GMO disposal', 'Entry date',
+] as const;
+
+export const reports = {
+  validateFormblatt: () => request<FormblattValidation>('/reports/formblatt-z/validate'),
+  rows: (lang: FormblattLang) => request<FormblattRow[]>(`/reports/formblatt-z/rows?lang=${lang}`),
+  downloadUrl: (lang: FormblattLang) => `/api/reports/formblatt-z?lang=${lang}`,
+  plasmidListUrl: () => '/api/reports/plasmid-list',
+  health: () => request<HealthReport>('/reports/health'),
+};
+
 export const database = {
   health: () => request<HealthResponse>('/health'),
+  inspect: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/database/inspect', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}));
+      throw new Error(detail.detail || detail.error || res.statusText);
+    }
+    return res.json() as Promise<DatabaseImportReport>;
+  },
   upload: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -208,6 +377,17 @@ export const database = {
       const detail = await res.json().catch(() => ({}));
       throw new Error(detail.detail || detail.error || res.statusText);
     }
-    return res.json();
+    return res.json() as Promise<DatabaseImportResult>;
   },
+  startImportJob: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/database/import-jobs', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}));
+      throw new Error(detail.detail || detail.error || res.statusText);
+    }
+    return res.json() as Promise<DatabaseImportJob>;
+  },
+  getImportJob: (jobId: string) => request<DatabaseImportJob>(`/database/import-jobs/${jobId}`),
 };
