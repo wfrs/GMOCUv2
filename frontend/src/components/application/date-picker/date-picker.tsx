@@ -47,7 +47,7 @@ export const DatePicker = ({ value: valueProp, defaultValue, onChange, onApply, 
                     )
                 }
             >
-                <AriaDialog className="rounded-2xl bg-primary shadow-xl ring ring-secondary_alt">
+                <AriaDialog className="uitl-calendar rounded-2xl bg-primary shadow-xl ring ring-secondary_alt">
                     {({ close }) => (
                         <>
                             <div className="flex px-6 py-5">
