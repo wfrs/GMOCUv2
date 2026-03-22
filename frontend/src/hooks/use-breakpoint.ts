@@ -22,6 +22,7 @@ export const useBreakpoint = (size: "sm" | "md" | "lg" | "xl" | "2xl") => {
     useEffect(() => {
         const breakpoint = window.matchMedia(`(min-width: ${screens[size]})`);
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMatches(breakpoint.matches);
 
         const handleChange = (value: MediaQueryListEvent) => setMatches(value.matches);

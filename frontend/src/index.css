@@ -163,12 +163,17 @@ html[data-reduce-motion] *::after {
 /* UUI semantic tokens collide with shadcn names. Scope correct values inside
    the calendar popup so the rest of the app is unaffected.                   */
 .uitl-calendar {
-  --color-primary:             oklch(1 0 0);
-  --color-primary_hover:       oklch(0.97 0 0);
-  --color-secondary:           oklch(0.25 0.015 250);
-  --color-secondary_hover:     oklch(0.15 0.015 250);
-  --color-tertiary:            oklch(0.42 0.015 250);
-  --color-tertiary_hover:      oklch(0.28 0.015 250);
+  /* Tailwind v4 @theme inline resolves bg-primary → var(--primary) directly,
+     so we override the source variables here, not --color-* aliases.
+     This scope is applied ONLY to the calendar body, not the footer buttons,
+     so the app's green --primary is preserved for Apply/Cancel.             */
+  --primary:           oklch(1 0 0);           /* bg-primary → white */
+  --primary_hover:     oklch(0.97 0 0);        /* hover bg */
+  --secondary:         oklch(0.25 0.015 250);  /* text-secondary → dark text */
+  --secondary_hover:   oklch(0.15 0.015 250);
+  --tertiary:          oklch(0.42 0.015 250);  /* text-tertiary */
+  --tertiary_hover:    oklch(0.28 0.015 250);
+  /* Untitled UI-specific tokens (not in @theme inline, referenced as-is) */
   --color-secondary_alt:       color-mix(in srgb, oklch(0.13 0.02 250) 18%, transparent);
   --color-active:              oklch(0.96 0 0);
   --color-disabled:            oklch(0.88 0 0);
@@ -179,10 +184,10 @@ html[data-reduce-motion] *::after {
   --color-fg-disabled:         oklch(0.68 0 0);
   --color-fg-disabled_subtle:  oklch(0.82 0 0);
   --color-fg-white:            oklch(1 0 0);
-  --color-focus-ring:          var(--primary);
-  /* Keep app accent so selected dates stay green */
-  --color-brand-solid:         var(--primary);
-  --color-brand-solid_hover:   color-mix(in srgb, var(--primary) 88%, black);
-  --color-fg-brand-primary:    var(--primary);
-  --color-outline-brand:       var(--primary);
+  --color-focus-ring:          var(--color-primary);
+  /* Keep app accent for selected dates */
+  --color-brand-solid:         var(--color-primary);
+  --color-brand-solid_hover:   color-mix(in srgb, var(--color-primary) 88%, black);
+  --color-fg-brand-primary:    var(--color-primary);
+  --color-outline-brand:       var(--color-primary);
 }

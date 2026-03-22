@@ -28,21 +28,14 @@ function toCalendarDate(iso: string): DateValue | null {
 }
 
 export function DateInput({ id, value, onChange, onBlur, className, disabled }: DateInputProps) {
-  const [display, setDisplay] = useState(() => value ? formatDate(value) : "");
-  const [editing, setEditing] = useState(false);
+  // typedText tracks what the user is typing; null means "not editing"
+  const [typedText, setTypedText] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pending, setPending] = useState<DateValue | null>(() => toCalendarDate(value));
+  const [pending, setPending] = useState<DateValue | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync display when external value changes
-  useEffect(() => {
-    if (!editing) setDisplay(value ? formatDate(value) : "");
-  }, [value, editing]);
-
-  // Sync pending calendar date when picker opens
-  useEffect(() => {
-    if (pickerOpen) setPending(toCalendarDate(value));
-  }, [pickerOpen, value]);
+  const isEditing = typedText !== null;
+  const displayValue = isEditing ? typedText : (value ? formatDate(value) : "");
 
   // Close picker on outside click
   useEffect(() => {
@@ -62,17 +55,20 @@ export function DateInput({ id, value, onChange, onBlur, className, disabled }: 
   };
 
   const handleTextBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Don't commit if focus moves into the calendar popup
     if (containerRef.current?.contains(e.relatedTarget as Node)) return;
-    setEditing(false);
-    const iso = parseDate(display) ?? "";
-    setDisplay(iso ? formatDate(iso) : "");
+    const iso = parseDate(typedText ?? "") ?? "";
+    setTypedText(null);
     emit(iso);
+  };
+
+  const openPicker = () => {
+    setPending(toCalendarDate(value));
+    setPickerOpen(true);
   };
 
   const handleApply = () => {
     const iso = toISO(pending);
-    setDisplay(iso ? formatDate(iso) : "");
+    setTypedText(null);
     emit(iso);
     setPickerOpen(false);
   };
@@ -84,11 +80,11 @@ export function DateInput({ id, value, onChange, onBlur, className, disabled }: 
       <Input
         id={id}
         type="text"
-        value={editing ? display : (value ? formatDate(value) : "")}
+        value={displayValue}
         disabled={disabled}
         placeholder={placeholder}
-        onChange={(e) => { setEditing(true); setDisplay(e.target.value); }}
-        onFocus={() => setEditing(true)}
+        onChange={(e) => setTypedText(e.target.value)}
+        onFocus={() => { if (!isEditing) setTypedText(value ? formatDate(value) : ""); }}
         onBlur={handleTextBlur}
         className="pr-8"
       />
@@ -96,7 +92,7 @@ export function DateInput({ id, value, onChange, onBlur, className, disabled }: 
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setPickerOpen((v) => !v)}
+        onClick={openPicker}
         className="absolute right-2 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:pointer-events-none"
         tabIndex={-1}
       >
@@ -105,25 +101,17 @@ export function DateInput({ id, value, onChange, onBlur, className, disabled }: 
 
       {/* Calendar popup */}
       {pickerOpen && (
-        <div className="uitl-calendar absolute top-full left-0 z-50 mt-1 rounded-2xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden min-w-max">
-          <div className="px-6 py-5">
-            <Calendar
-              value={pending}
-              onChange={setPending}
-            />
+        <div className="absolute top-full left-0 z-50 mt-1 rounded-2xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden min-w-max">
+          {/* .uitl-calendar scoped to the calendar body only so the
+              app's green primary is preserved in the footer buttons */}
+          <div className="uitl-calendar px-6 py-5">
+            <Calendar value={pending} onChange={setPending} />
           </div>
           <div className="grid grid-cols-2 gap-3 border-t border-border p-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPickerOpen(false)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setPickerOpen(false)}>
               Cancel
             </Button>
-            <Button
-              size="sm"
-              onClick={handleApply}
-            >
+            <Button size="sm" onClick={handleApply}>
               Apply
             </Button>
           </div>
