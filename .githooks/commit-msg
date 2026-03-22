@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Auto-bump version based on conventional commit prefix.
+# feat: bumps MINOR (resets patch to 0)
+# fix: bumps PATCH
+# anything else: no bump
+
+MSG_FILE="$1"
+MSG=$(cat "$MSG_FILE")
+
+if echo "$MSG" | grep -qE '^feat[:(]'; then
+  BUMP="minor"
+elif echo "$MSG" | grep -qE '^fix[:(]'; then
+  BUMP="patch"
+else
+  exit 0
+fi
+
+# Read current version from the single source of truth
+CURRENT=$(grep -oE '[0-9]+\.[0-9]+\.[0-9]+' backend/app/config.py | head -1)
+MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+MINOR=$(echo "$CURRENT" | cut -d. -f2)
+PATCH=$(echo "$CURRENT" | cut -d. -f3)
+
+if [ "$BUMP" = "minor" ]; then
+  MINOR=$((MINOR + 1))
+  PATCH=0
+else
+  PATCH=$((PATCH + 1))
+fi
+
+NEW="$MAJOR.$MINOR.$PATCH"
+
+sed -i '' "s/VERSION = \"$CURRENT\"/VERSION = \"$NEW\"/" backend/app/config.py
+sed -i '' "s/\"version\": \"$CURRENT\"/\"version\": \"$NEW\"/" frontend/package.json
+sed -i '' "s/^version = \"$CURRENT\"/version = \"$NEW\"/" backend/pyproject.toml
+
+git add backend/app/config.py frontend/package.json backend/pyproject.toml
+
+echo "Version bumped: $CURRENT -> $NEW ($BUMP)"
