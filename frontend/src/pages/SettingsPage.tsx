@@ -4,6 +4,7 @@ import {
   Sun, Moon, Monitor, ExternalLink, Tag,
   SlidersHorizontal, User, Leaf, Plug, Info,
   ALargeSmall, LayoutPanelLeft, Loader2, RefreshCw, Wifi, Upload,
+  Bug, Lightbulb, MessageCircle,
 } from "lucide-react";
 import { applyAllAppearance, formatDate } from "@/lib/appearance";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
@@ -1014,6 +1015,43 @@ export default function SettingsPage({ accentPresetId, onAccentChange, onImportD
               </div>
             </div>
           )}
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground px-1">
+            Get in Touch
+          </p>
+          <SettingsGroup>
+            {[
+              {
+                icon: Bug,
+                label: "Report a bug",
+                href: "https://github.com/wfrs/GMOCUv2/issues/new?labels=bug",
+              },
+              {
+                icon: Lightbulb,
+                label: "Request a feature",
+                href: "https://github.com/wfrs/GMOCUv2/issues/new?labels=enhancement",
+              },
+              {
+                icon: MessageCircle,
+                label: "Ask a question",
+                href: "https://github.com/wfrs/GMOCUv2/discussions",
+              },
+            ].map(({ icon: Icon, label, href }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors group"
+              >
+                <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="flex-1 text-sm">{label}</span>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            ))}
+          </SettingsGroup>
         </div>
       </div>
     ),
