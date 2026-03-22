@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Construction, Copy, Check, Sun, Moon, Monitor } from "lucide-react";
+import { Plus, Trash2, Construction, Copy, Check, Sun, Moon, Monitor, ExternalLink, Tag } from "lucide-react";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
 import { useTheme } from "@/components/theme-context";
 import { toast } from "sonner";
@@ -8,10 +8,12 @@ import {
   organisms as organismsApi,
   organismSelections,
   organismFavourites,
+  releases as releasesApi,
   type Settings,
   type Organism,
   type OrganismSelectionItem,
   type OrganismFavouriteItem,
+  type ReleaseNote,
 } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +94,8 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
   const [favOrganisms, setFavOrganisms] = useState<OrganismFavouriteItem[]>([]);
   const [targetCombo, setTargetCombo] = useState("");
   const [favCombo, setFavCombo] = useState("");
+  const [releaseNotes, setReleaseNotes] = useState<ReleaseNote[]>([]);
+  const [releasesLoading, setReleasesLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -108,6 +112,11 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
       })
       .catch((e) => toast.error(e instanceof Error ? e.message : "Failed to load settings"))
       .finally(() => setLoading(false));
+
+    releasesApi.list()
+      .then(setReleaseNotes)
+      .catch(() => {/* silently ignore — offline or no releases yet */})
+      .finally(() => setReleasesLoading(false));
   }, []);
 
   const updateField = async (field: string, value: string | number) => {
@@ -435,11 +444,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
       <section className="border rounded-lg p-5 space-y-3 border-dashed">
         <SectionHeader title="Coming Soon" description="Features being ported from the legacy app." />
         <ComingSoon label="Upload to JBEI/ice, Filebrowser, and GDrive" />
-        <ComingSoon label="Generate Formblatt Z" />
-        <ComingSoon label="Generate plasmid list" />
         <ComingSoon label="Google Sheets glossary sync" />
-        <ComingSoon label="Excel import/export for features and organisms" />
-        <ComingSoon label="Import data from another GMOCU database" />
       </section>
 
       {/* ── Target Organisms ── */}
@@ -536,6 +541,101 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
             ))
           ) : (
             <p className="text-sm text-muted-foreground py-2">No favourite organisms configured.</p>
+          )}
+        </div>
+      </section>
+
+      {/* ── About ── */}
+      <section className="border rounded-lg p-5 space-y-5">
+        <div className="flex items-start justify-between">
+          <SectionHeader
+            title="About GMOCU"
+            description="GMO documentation and plasmid management."
+          />
+          <a
+            href="https://github.com/wfrs/GMOCUv2"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1 shrink-0"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            GitHub
+          </a>
+        </div>
+
+        {/* Version badge */}
+        <div className="flex items-center gap-2">
+          <span className="text-2xl font-bold tracking-tight">GMOCU</span>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            v{releaseNotes[0]?.version.replace(/^v/, "") ?? "2.1.0"}
+          </span>
+        </div>
+
+        {/* Release notes */}
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+            What's new
+          </p>
+
+          {releasesLoading && (
+            <p className="text-sm text-muted-foreground">Loading release notes…</p>
+          )}
+
+          {!releasesLoading && releaseNotes.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No releases published yet.{" "}
+              <a
+                href="https://github.com/wfrs/GMOCUv2/releases"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                View on GitHub
+              </a>
+            </p>
+          )}
+
+          {releaseNotes.map((r) => (
+            <div key={r.version} className="py-3 border-t border-border/60 first:border-t-0 first:pt-0">
+              <div className="flex items-center gap-2 mb-2">
+                <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold hover:text-primary transition-colors"
+                >
+                  {r.version}
+                </a>
+                {r.prerelease && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 text-amber-600 dark:text-amber-400">
+                    pre-release
+                  </span>
+                )}
+                {r.date && (
+                  <span className="text-xs text-muted-foreground ml-auto">{r.date}</span>
+                )}
+              </div>
+              {r.notes && (
+                <div className="ml-5 text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+                  {r.notes.length > 600 ? r.notes.slice(0, 600) + "…" : r.notes}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {releaseNotes.length > 0 && (
+            <div className="pt-2 border-t border-border/60">
+              <a
+                href="https://github.com/wfrs/GMOCUv2/releases"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                View all releases on GitHub
+              </a>
+            </div>
           )}
         </div>
       </section>

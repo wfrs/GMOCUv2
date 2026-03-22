@@ -236,6 +236,15 @@ export interface HealthResponse {
   database: string;
 }
 
+export interface ReleaseNote {
+  version: string;
+  name: string;
+  date: string | null;
+  notes: string;
+  url: string;
+  prerelease: boolean;
+}
+
 export interface DatabaseImportStep {
   id: string;
   label: string;
@@ -355,6 +364,10 @@ export const reports = {
   downloadUrl: (lang: FormblattLang) => `/api/reports/formblatt-z?lang=${lang}`,
   plasmidListUrl: () => '/api/reports/plasmid-list',
   health: () => request<HealthReport>('/reports/health'),
+};
+
+export const releases = {
+  list: () => request<ReleaseNote[]>('/releases'),
 };
 
 export const database = {

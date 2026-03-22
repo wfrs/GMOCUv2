@@ -1,5 +1,9 @@
 """GMOCU 2.0 — FastAPI backend."""
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from typing import Any
+import urllib.request
+import json
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +54,39 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+_releases_cache: dict[str, Any] = {"data": [], "expires": datetime.min}
+GITHUB_REPO = "wfrs/GMOCUv2"
+
+
+@app.get("/api/releases")
+def get_releases():
+    """Return the latest GitHub releases, cached for 15 minutes."""
+    global _releases_cache
+    if datetime.now() < _releases_cache["expires"]:
+        return _releases_cache["data"]
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=10"
+        req = urllib.request.Request(url, headers={"User-Agent": "GMOCU"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = json.loads(resp.read())
+        releases = [
+            {
+                "version": r["tag_name"],
+                "name": r["name"] or r["tag_name"],
+                "date": r["published_at"][:10] if r.get("published_at") else None,
+                "notes": r.get("body") or "",
+                "url": r["html_url"],
+                "prerelease": r.get("prerelease", False),
+            }
+            for r in raw
+            if not r.get("draft")
+        ]
+        _releases_cache = {"data": releases, "expires": datetime.now() + timedelta(minutes=15)}
+        return releases
+    except Exception:
+        return _releases_cache["data"]  # return stale data or [] on failure
 
 
 @app.get("/api/health")
