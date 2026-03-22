@@ -101,7 +101,7 @@ export function DateInput({ id, value, onChange, onBlur, className, disabled }: 
 
       {/* Calendar popup */}
       {pickerOpen && (
-        <div className="absolute top-full left-0 z-50 mt-1 rounded-2xl bg-white shadow-xl ring-1 ring-black/10 overflow-hidden min-w-max">
+        <div className="absolute top-full left-0 z-50 mt-1 rounded-2xl bg-popover shadow-xl ring-1 ring-border overflow-hidden min-w-max">
           {/* .uitl-calendar scoped to the calendar body only so the
               app's green primary is preserved in the footer buttons */}
           <div className="uitl-calendar px-6 py-5">
