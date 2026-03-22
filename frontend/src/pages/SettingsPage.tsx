@@ -654,7 +654,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
               </div>
               {r.notes && (
                 <div className="ml-5">
-                  <ReleaseNoteBody notes={r.notes.length > 600 ? r.notes.slice(0, 600) + "…" : r.notes} />
+                  <ReleaseNoteBody notes={r.notes} />
                 </div>
               )}
             </div>
