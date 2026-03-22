@@ -3,7 +3,15 @@ import {
   Plus, Trash2, Construction, Copy, Check,
   Sun, Moon, Monitor, ExternalLink, Tag,
   SlidersHorizontal, User, Leaf, Plug, Info,
+  ALargeSmall, LayoutPanelLeft,
 } from "lucide-react";
+import {
+  applyDbAppearance,
+  applyLocalAppearance,
+  getLocalAppearance,
+  setLocalAppearance,
+  type LocalAppearance,
+} from "@/lib/appearance";
 import { COLOR_PRESETS, swatchColor } from "@/lib/theme-colors";
 import { useTheme } from "@/components/theme-context";
 import { toast } from "sonner";
@@ -230,6 +238,7 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
   const { theme, setTheme } = useTheme();
   const [activeSection, setActiveSection] = useState<NavSection>("general");
   const [data, setData] = useState<Settings | null>(null);
+  const [localAppearance, setLocalAppearanceState] = useState<LocalAppearance>(getLocalAppearance);
   const [loading, setLoading] = useState(true);
   const [allOrganisms, setAllOrganisms] = useState<Organism[]>([]);
   const [targetOrganisms, setTargetOrganisms] = useState<OrganismSelectionItem[]>([]);
@@ -274,6 +283,23 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
 
   const toggleField = async (field: string, current: number | null) => {
     await updateField(field, current ? 0 : 1);
+  };
+
+  const updateDbAppearance = async (field: string, value: number) => {
+    if (!data) return;
+    try {
+      const updated = await settingsApi.update({ [field]: value });
+      setData(updated);
+      applyDbAppearance(updated.font_size, updated.scale !== null ? updated.scale : null, updated.horizontal_layout);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to save");
+    }
+  };
+
+  const updateLocal = (patch: Partial<LocalAppearance>) => {
+    setLocalAppearance(patch);
+    applyLocalAppearance();
+    setLocalAppearanceState(getLocalAppearance());
   };
 
   const addTargetOrganism = async () => {
@@ -395,6 +421,128 @@ export default function SettingsPage({ accentPresetId, onAccentChange }: Setting
               })}
             </div>
           </div>
+
+          {/* Font size */}
+          <div className="px-4 py-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <ALargeSmall className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Text Size</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { idx: 0, label: "Small"  },
+                { idx: 1, label: "Medium" },
+                { idx: 2, label: "Large"  },
+              ]).map(({ idx, label }) => {
+                const isActive = (data.font_size ?? 1) === idx;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => updateDbAppearance("font_size", idx)}
+                    className={`rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      isActive
+                        ? "border-primary bg-primary/8 text-primary font-medium"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Density */}
+          <div className="px-4 py-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <LayoutPanelLeft className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-medium">Density</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { idx: 0, label: "Compact"     },
+                { idx: 1, label: "Comfortable" },
+                { idx: 2, label: "Spacious"    },
+              ]).map(({ idx, label }) => {
+                const isActive = Math.round(data.scale ?? 1) === idx;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => updateDbAppearance("scale", idx)}
+                    className={`rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      isActive
+                        ? "border-primary bg-primary/8 text-primary font-medium"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </SettingsGroup>
+
+        <SettingsGroup label="Display">
+          {/* Date format */}
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-sm font-medium">Date Format</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { id: "eu",  label: "DD.MM.YYYY", example: "22.03.2026" },
+                { id: "iso", label: "YYYY-MM-DD", example: "2026-03-22" },
+              ] as const).map(({ id, label, example }) => {
+                const isActive = localAppearance.dateFormat === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => updateLocal({ dateFormat: id })}
+                    className={`flex flex-col items-start rounded-lg border px-3 py-2 text-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      isActive
+                        ? "border-primary bg-primary/8 text-primary font-medium"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span>{label}</span>
+                    <span className="text-xs opacity-70 font-mono">{example}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Reduce motion */}
+          <SettingsRow
+            label="Reduce Motion"
+            description="Disable animations and transitions throughout the interface."
+          >
+            <Toggle
+              checked={localAppearance.reduceMotion}
+              onChange={(v) => updateLocal({ reduceMotion: v })}
+            />
+          </SettingsRow>
+
+          {/* Monospace GenBank */}
+          <SettingsRow
+            label="Monospace GenBank viewer"
+            description="Display GenBank sequence data in a fixed-width font."
+          >
+            <Toggle
+              checked={localAppearance.monoGenbank}
+              onChange={(v) => updateLocal({ monoGenbank: v })}
+            />
+          </SettingsRow>
+
+          {/* Horizontal layout */}
+          <SettingsRow
+            label="Horizontal layout"
+            description="Show plasmid details side-by-side instead of stacked."
+          >
+            <Toggle
+              checked={!!data.horizontal_layout}
+              onChange={() => toggleField("horizontal_layout", data.horizontal_layout)}
+            />
+          </SettingsRow>
         </SettingsGroup>
 
         <SettingsGroup label="Behaviour">

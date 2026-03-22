@@ -135,3 +135,21 @@
     @apply font-sans;
   }
 }
+
+/* ── Density ─────────────────────────────────────────────────────────────── */
+html[data-density="compact"] [data-row] {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+html[data-density="spacious"] [data-row] {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+/* ── Reduce motion ───────────────────────────────────────────────────────── */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+}
